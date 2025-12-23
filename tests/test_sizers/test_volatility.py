@@ -6,6 +6,10 @@ VolatilitySizer Formula:
     quantity = (equity * risk_per_trade) / (price * atr_multiple * atr)
 
 Higher volatility → smaller position (inverse relationship).
+
+Note: Sizers now return TargetPosition instead of OrderRequest.
+TargetPosition has target_quantity (positive for long, negative for short)
+and direction ("long", "short", "flat").
 """
 
 from __future__ import annotations
@@ -15,7 +19,7 @@ from decimal import Decimal
 
 from hypothesis import given, settings
 from hypothesis import strategies as st
-from liq.core import Bar, OrderSide, OrderType, PortfolioState
+from liq.core import Bar, PortfolioState
 from liq.signals import Signal
 
 from liq.risk import MarketState, RiskConfig
@@ -92,8 +96,8 @@ class TestVolatilitySizerBasic:
 
         assert orders == []
 
-    def test_long_signal_produces_buy_order(self) -> None:
-        """Long signal should produce a BUY order."""
+    def test_long_signal_produces_long_target(self) -> None:
+        """Long signal should produce a long TargetPosition."""
         from liq.risk.sizers import VolatilitySizer
 
         now = datetime.now(UTC)
@@ -121,15 +125,15 @@ class TestVolatilitySizerBasic:
         )
         signals = [Signal(symbol="AAPL", timestamp=now, direction="long", strength=0.8)]
 
-        orders = sizer.size_positions(signals, portfolio, market, config)
+        targets = sizer.size_positions(signals, portfolio, market, config)
 
-        assert len(orders) == 1
-        assert orders[0].symbol == "AAPL"
-        assert orders[0].side == OrderSide.BUY
-        assert orders[0].order_type == OrderType.MARKET
+        assert len(targets) == 1
+        assert targets[0].symbol == "AAPL"
+        assert targets[0].direction == "long"
+        assert targets[0].target_quantity > 0
 
-    def test_short_signal_produces_sell_order(self) -> None:
-        """Short signal should produce a SELL order."""
+    def test_short_signal_produces_short_target(self) -> None:
+        """Short signal should produce a short TargetPosition."""
         from liq.risk.sizers import VolatilitySizer
 
         now = datetime.now(UTC)
@@ -157,11 +161,12 @@ class TestVolatilitySizerBasic:
         )
         signals = [Signal(symbol="AAPL", timestamp=now, direction="short", strength=0.8)]
 
-        orders = sizer.size_positions(signals, portfolio, market, config)
+        targets = sizer.size_positions(signals, portfolio, market, config)
 
-        assert len(orders) == 1
-        assert orders[0].symbol == "AAPL"
-        assert orders[0].side == OrderSide.SELL
+        assert len(targets) == 1
+        assert targets[0].symbol == "AAPL"
+        assert targets[0].direction == "short"
+        assert targets[0].target_quantity < 0  # Negative for short
 
 
 class TestVolatilitySizerFormula:
@@ -198,11 +203,11 @@ class TestVolatilitySizerFormula:
         )
         signals = [Signal(symbol="AAPL", timestamp=now, direction="long", strength=1.0)]
 
-        orders = sizer.size_positions(signals, portfolio, market, config)
+        targets = sizer.size_positions(signals, portfolio, market, config)
 
-        assert len(orders) == 1
+        assert len(targets) == 1
         # qty = (100000 * 0.01) / (100 * 2.0 * 2.50) = 1000 / 500 = 2
-        assert orders[0].quantity == Decimal("2")
+        assert targets[0].target_quantity == Decimal("2")
 
     def test_higher_volatility_smaller_position(self) -> None:
         """Higher volatility should result in smaller position size."""
@@ -253,10 +258,10 @@ class TestVolatilitySizerFormula:
 
         signals = [Signal(symbol="AAPL", timestamp=now, direction="long", strength=1.0)]
 
-        orders_low_vol = sizer.size_positions(signals, portfolio, market_low_vol, config)
-        orders_high_vol = sizer.size_positions(signals, portfolio, market_high_vol, config)
+        targets_low_vol = sizer.size_positions(signals, portfolio, market_low_vol, config)
+        targets_high_vol = sizer.size_positions(signals, portfolio, market_high_vol, config)
 
-        assert orders_low_vol[0].quantity > orders_high_vol[0].quantity
+        assert targets_low_vol[0].target_quantity > targets_high_vol[0].target_quantity
 
     def test_higher_equity_larger_position(self) -> None:
         """Higher equity should result in larger position size."""
@@ -296,10 +301,10 @@ class TestVolatilitySizerFormula:
             timestamp=now,
         )
 
-        orders_small = sizer.size_positions(signals, portfolio_small, market, config)
-        orders_large = sizer.size_positions(signals, portfolio_large, market, config)
+        targets_small = sizer.size_positions(signals, portfolio_small, market, config)
+        targets_large = sizer.size_positions(signals, portfolio_large, market, config)
 
-        assert orders_large[0].quantity > orders_small[0].quantity
+        assert targets_large[0].target_quantity > targets_small[0].target_quantity
 
     def test_uses_midrange_price_by_default(self) -> None:
         """By default, should use midrange price for sizing."""
@@ -331,10 +336,10 @@ class TestVolatilitySizerFormula:
         )
         signals = [Signal(symbol="AAPL", timestamp=now, direction="long", strength=1.0)]
 
-        orders = sizer.size_positions(signals, portfolio, market, config)
+        targets = sizer.size_positions(signals, portfolio, market, config)
 
         # qty = (100000 * 0.01) / (100 * 2.0 * 2.50) = 1000 / 500 = 2
-        assert orders[0].quantity == Decimal("2")
+        assert targets[0].target_quantity == Decimal("2")
 
     def test_can_use_close_price(self) -> None:
         """Can configure to use close price instead of midrange."""
@@ -366,10 +371,10 @@ class TestVolatilitySizerFormula:
         )
         signals = [Signal(symbol="AAPL", timestamp=now, direction="long", strength=1.0)]
 
-        orders = sizer.size_positions(signals, portfolio, market, config)
+        targets = sizer.size_positions(signals, portfolio, market, config)
 
         # qty = (100000 * 0.01) / (50 * 2.0 * 2.50) = 1000 / 250 = 4
-        assert orders[0].quantity == Decimal("4")
+        assert targets[0].target_quantity == Decimal("4")
 
 
 class TestVolatilitySizerEdgeCases:
@@ -466,11 +471,16 @@ class TestVolatilitySizerEdgeCases:
         assert orders == []
 
     def test_quantity_rounded_down_to_whole_shares(self) -> None:
-        """Quantity should be rounded down to whole shares."""
+        """Quantity should be rounded down to whole shares when configured."""
         from liq.risk.sizers import VolatilitySizer
 
         now = datetime.now(UTC)
-        sizer = VolatilitySizer(atr_multiple=2.0)
+        # Configure for whole-share trading (equities)
+        sizer = VolatilitySizer(
+            atr_multiple=2.0,
+            min_quantity=Decimal("1"),
+            quantize_step=Decimal("1"),
+        )
         config = RiskConfig(risk_per_trade=0.01)
         portfolio = PortfolioState(
             cash=Decimal("100000"),
@@ -495,17 +505,22 @@ class TestVolatilitySizerEdgeCases:
         )
         signals = [Signal(symbol="AAPL", timestamp=now, direction="long", strength=1.0)]
 
-        orders = sizer.size_positions(signals, portfolio, market, config)
+        targets = sizer.size_positions(signals, portfolio, market, config)
 
         # Should round down to 1 (not 2)
-        assert orders[0].quantity == Decimal("1")
+        assert targets[0].target_quantity == Decimal("1")
 
     def test_quantity_less_than_one_skips_signal(self) -> None:
-        """If calculated quantity < 1, signal should be skipped."""
+        """If calculated quantity < 1, signal should be skipped for whole-share mode."""
         from liq.risk.sizers import VolatilitySizer
 
         now = datetime.now(UTC)
-        sizer = VolatilitySizer(atr_multiple=2.0)
+        # Configure for whole-share trading (equities)
+        sizer = VolatilitySizer(
+            atr_multiple=2.0,
+            min_quantity=Decimal("1"),
+            quantize_step=Decimal("1"),
+        )
         config = RiskConfig(risk_per_trade=0.001)  # Very small risk
         portfolio = PortfolioState(
             cash=Decimal("1000"),  # Small portfolio
@@ -599,7 +614,7 @@ class TestVolatilitySizerPropertyBased:
         price: Decimal,
         volatility: Decimal,
     ) -> None:
-        """Calculated quantity should always be >= 0."""
+        """Calculated quantity should always be >= 0 for long positions."""
         from liq.risk.sizers import VolatilitySizer
 
         now = datetime.now(UTC)
@@ -627,11 +642,11 @@ class TestVolatilitySizerPropertyBased:
         )
         signals = [Signal(symbol="TEST", timestamp=now, direction="long", strength=1.0)]
 
-        orders = sizer.size_positions(signals, portfolio, market, config)
+        targets = sizer.size_positions(signals, portfolio, market, config)
 
-        # Either no order (qty < 1) or positive quantity
-        if orders:
-            assert orders[0].quantity >= 1
+        # Either no target (qty < min_quantity) or positive target_quantity for long
+        if targets:
+            assert targets[0].target_quantity > 0
 
     @given(
         vol1=st.decimals(min_value=Decimal("0.1"), max_value=50, places=2, allow_nan=False, allow_infinity=False),
@@ -681,12 +696,12 @@ class TestVolatilitySizerPropertyBased:
         )
         signals = [Signal(symbol="TEST", timestamp=now, direction="long", strength=1.0)]
 
-        orders1 = sizer.size_positions(signals, portfolio, market1, config)
-        orders2 = sizer.size_positions(signals, portfolio, market2, config)
+        targets1 = sizer.size_positions(signals, portfolio, market1, config)
+        targets2 = sizer.size_positions(signals, portfolio, market2, config)
 
-        # Get quantities (0 if no order)
-        qty1 = orders1[0].quantity if orders1 else Decimal("0")
-        qty2 = orders2[0].quantity if orders2 else Decimal("0")
+        # Get quantities (0 if no target)
+        qty1 = targets1[0].target_quantity if targets1 else Decimal("0")
+        qty2 = targets2[0].target_quantity if targets2 else Decimal("0")
 
         # Higher volatility should mean smaller or equal position
         if vol1 > vol2:

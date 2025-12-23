@@ -51,3 +51,7 @@ explicit_package_bases = true
 [tool.pytest.ini_options]
 addopts = "--cov=liq.risk --cov-report=term-missing --cov-fail-under=90"
 testpaths = ["tests"]
+filterwarnings = [
+    # Ignore expected RiskConfig validation warnings during tests
+    "ignore:max_position_pct.*exceeds max_gross_leverage:UserWarning",
+]

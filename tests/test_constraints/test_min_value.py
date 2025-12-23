@@ -12,7 +12,7 @@ from decimal import Decimal
 
 from hypothesis import given, settings
 from hypothesis import strategies as st
-from liq.core import Bar, OrderRequest, OrderSide, OrderType, PortfolioState
+from liq.core import Bar, OrderRequest, OrderSide, OrderType, PortfolioState, Position
 
 from liq.risk import MarketState, RiskConfig
 from liq.risk.protocols import Constraint
@@ -51,9 +51,9 @@ class TestMinPositionValueConstraintBasic:
             timestamp=now,
         )
 
-        result = constraint.apply([], portfolio, market, config)
+        constraint_result = constraint.apply([], portfolio, market, config)
 
-        assert result == []
+        assert constraint_result.orders == []
 
     def test_order_above_minimum_passes(self) -> None:
         """Order above minimum value should pass."""
@@ -93,10 +93,10 @@ class TestMinPositionValueConstraintBasic:
             )
         ]
 
-        result = constraint.apply(orders, portfolio, market, config)
+        constraint_result = constraint.apply(orders, portfolio, market, config)
 
-        assert len(result) == 1
-        assert result[0].quantity == Decimal("10")
+        assert len(constraint_result.orders) == 1
+        assert constraint_result.orders[0].quantity == Decimal("10")
 
     def test_order_below_minimum_filtered(self) -> None:
         """Order below minimum value should be filtered."""
@@ -136,9 +136,9 @@ class TestMinPositionValueConstraintBasic:
             )
         ]
 
-        result = constraint.apply(orders, portfolio, market, config)
+        constraint_result = constraint.apply(orders, portfolio, market, config)
 
-        assert result == []
+        assert constraint_result.orders == []
 
     def test_order_exactly_at_minimum_passes(self) -> None:
         """Order exactly at minimum value should pass."""
@@ -178,9 +178,9 @@ class TestMinPositionValueConstraintBasic:
             )
         ]
 
-        result = constraint.apply(orders, portfolio, market, config)
+        constraint_result = constraint.apply(orders, portfolio, market, config)
 
-        assert len(result) == 1
+        assert len(constraint_result.orders) == 1
 
     def test_multiple_orders_filtered_independently(self) -> None:
         """Multiple orders should be filtered independently."""
@@ -235,10 +235,10 @@ class TestMinPositionValueConstraintBasic:
             ),
         ]
 
-        result = constraint.apply(orders, portfolio, market, config)
+        constraint_result = constraint.apply(orders, portfolio, market, config)
 
-        assert len(result) == 1
-        assert result[0].symbol == "AAPL"
+        assert len(constraint_result.orders) == 1
+        assert constraint_result.orders[0].symbol == "AAPL"
 
     def test_sell_orders_always_pass(self) -> None:
         """Sell orders should always pass (reducing position)."""
@@ -278,9 +278,9 @@ class TestMinPositionValueConstraintBasic:
             )
         ]
 
-        result = constraint.apply(orders, portfolio, market, config)
+        constraint_result = constraint.apply(orders, portfolio, market, config)
 
-        assert len(result) == 1
+        assert len(constraint_result.orders) == 1
 
     def test_missing_bar_data_filters_order(self) -> None:
         """Order without bar data should be filtered."""
@@ -310,9 +310,9 @@ class TestMinPositionValueConstraintBasic:
             )
         ]
 
-        result = constraint.apply(orders, portfolio, market, config)
+        constraint_result = constraint.apply(orders, portfolio, market, config)
 
-        assert result == []
+        assert constraint_result.orders == []
 
     def test_zero_minimum_passes_all(self) -> None:
         """Zero minimum should pass all orders."""
@@ -351,9 +351,9 @@ class TestMinPositionValueConstraintBasic:
             )
         ]
 
-        result = constraint.apply(orders, portfolio, market, config)
+        constraint_result = constraint.apply(orders, portfolio, market, config)
 
-        assert len(result) == 1
+        assert len(constraint_result.orders) == 1
 
 
 class TestMinPositionValueConstraintPropertyBased:
@@ -407,12 +407,116 @@ class TestMinPositionValueConstraintPropertyBased:
             )
         ]
 
-        result = constraint.apply(orders, portfolio, market, config)
+        constraint_result = constraint.apply(orders, portfolio, market, config)
         order_value = price * Decimal(str(quantity))
 
         # If filtered, order value must be below minimum
-        if not result:
+        if not constraint_result.orders:
             assert order_value < min_value
         # If passed, order value must be >= minimum
         else:
             assert order_value >= min_value
+
+
+class TestMinPositionValueConstraintClassifyRisk:
+    """Tests for MinPositionValueConstraint classify_risk method."""
+
+    def test_buy_no_position_is_risk_increasing(self) -> None:
+        """Buying with no existing position increases risk."""
+        from liq.risk.constraints import MinPositionValueConstraint
+
+        now = datetime.now(UTC)
+        constraint = MinPositionValueConstraint()
+        portfolio = PortfolioState(
+            cash=Decimal("100000"),
+            positions={},
+            timestamp=now,
+        )
+        order = OrderRequest(
+            symbol="AAPL",
+            side=OrderSide.BUY,
+            order_type=OrderType.MARKET,
+            quantity=Decimal("100"),
+            timestamp=now,
+        )
+
+        assert constraint.classify_risk(order, portfolio) is True
+
+    def test_buy_covering_short_is_risk_reducing(self) -> None:
+        """Buying to cover a short position reduces risk."""
+        from liq.risk.constraints import MinPositionValueConstraint
+
+        now = datetime.now(UTC)
+        constraint = MinPositionValueConstraint()
+        portfolio = PortfolioState(
+            cash=Decimal("100000"),
+            positions={
+                "AAPL": Position(
+                    symbol="AAPL",
+                    quantity=Decimal("-50"),
+                    average_price=Decimal("100"),
+                    realized_pnl=Decimal("0"),
+                    timestamp=now,
+                )
+            },
+            timestamp=now,
+        )
+        order = OrderRequest(
+            symbol="AAPL",
+            side=OrderSide.BUY,
+            order_type=OrderType.MARKET,
+            quantity=Decimal("50"),
+            timestamp=now,
+        )
+
+        assert constraint.classify_risk(order, portfolio) is False
+
+    def test_sell_closing_long_is_risk_reducing(self) -> None:
+        """Selling to close a long position reduces risk."""
+        from liq.risk.constraints import MinPositionValueConstraint
+
+        now = datetime.now(UTC)
+        constraint = MinPositionValueConstraint()
+        portfolio = PortfolioState(
+            cash=Decimal("100000"),
+            positions={
+                "AAPL": Position(
+                    symbol="AAPL",
+                    quantity=Decimal("100"),
+                    average_price=Decimal("100"),
+                    realized_pnl=Decimal("0"),
+                    timestamp=now,
+                )
+            },
+            timestamp=now,
+        )
+        order = OrderRequest(
+            symbol="AAPL",
+            side=OrderSide.SELL,
+            order_type=OrderType.MARKET,
+            quantity=Decimal("50"),
+            timestamp=now,
+        )
+
+        assert constraint.classify_risk(order, portfolio) is False
+
+    def test_sell_initiating_short_is_risk_increasing(self) -> None:
+        """Selling to initiate short increases risk."""
+        from liq.risk.constraints import MinPositionValueConstraint
+
+        now = datetime.now(UTC)
+        constraint = MinPositionValueConstraint()
+        portfolio = PortfolioState(
+            cash=Decimal("100000"),
+            positions={},
+            timestamp=now,
+        )
+        order = OrderRequest(
+            symbol="AAPL",
+            side=OrderSide.SELL,
+            order_type=OrderType.MARKET,
+            quantity=Decimal("50"),
+            timestamp=now,
+        )
+
+        assert constraint.classify_risk(order, portfolio) is True

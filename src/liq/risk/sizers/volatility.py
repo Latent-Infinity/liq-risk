@@ -12,9 +12,9 @@ Higher volatility → smaller position.
 from __future__ import annotations
 
 from decimal import ROUND_DOWN, Decimal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
-from liq.core import OrderRequest, OrderSide, OrderType
+from liq.risk.types import TargetPosition
 
 if TYPE_CHECKING:
     from liq.core import PortfolioState
@@ -37,7 +37,7 @@ class VolatilitySizer:
 
     Example:
         >>> sizer = VolatilitySizer(atr_multiple=2.0)
-        >>> orders = sizer.size_positions(signals, portfolio, market, config)
+        >>> targets = sizer.size_positions(signals, portfolio, market, config)
     """
 
     def __init__(
@@ -45,6 +45,8 @@ class VolatilitySizer:
         risk_per_trade: float | None = None,
         atr_multiple: float = 2.0,
         use_midrange_price: bool = True,
+        min_quantity: Decimal = Decimal("0.0001"),
+        quantize_step: Decimal | None = Decimal("0.0001"),
     ) -> None:
         """Initialize VolatilitySizer.
 
@@ -53,10 +55,14 @@ class VolatilitySizer:
                            If None, uses config.risk_per_trade.
             atr_multiple: Stop-loss distance in ATR multiples.
             use_midrange_price: Use midrange price instead of close.
+            min_quantity: Minimum tradable quantity (default supports crypto fractional sizing).
+            quantize_step: Optional lot size to quantize quantities (None = no quantization).
         """
         self.risk_per_trade = risk_per_trade
         self.atr_multiple = atr_multiple
         self.use_midrange_price = use_midrange_price
+        self.min_quantity = min_quantity
+        self.quantize_step = quantize_step
 
     def size_positions(
         self,
@@ -64,7 +70,7 @@ class VolatilitySizer:
         portfolio_state: PortfolioState,
         market_state: MarketState,
         risk_config: RiskConfig,
-    ) -> list[OrderRequest]:
+    ) -> list[TargetPosition]:
         """Size positions based on volatility-adjusted risk.
 
         Args:
@@ -74,9 +80,9 @@ class VolatilitySizer:
             risk_config: Risk parameters.
 
         Returns:
-            List of sized OrderRequest objects.
+            List of TargetPosition objects with target quantities.
         """
-        orders: list[OrderRequest] = []
+        targets: list[TargetPosition] = []
         equity = portfolio_state.equity
         risk_pct = (
             self.risk_per_trade
@@ -114,26 +120,45 @@ class VolatilitySizer:
                 continue
 
             raw_quantity = risk_amount / divisor
+            if self.quantize_step:
+                steps = (raw_quantity / self.quantize_step).to_integral_value(rounding=ROUND_DOWN)
+                quantity = steps * self.quantize_step
+            else:
+                quantity = raw_quantity
 
-            # Round down to whole shares
-            quantity = raw_quantity.to_integral_value(rounding=ROUND_DOWN)
-
-            # Skip if quantity < 1
-            if quantity < 1:
+            # Skip if below minimum tradable size
+            if quantity < self.min_quantity:
                 continue
 
-            # Determine order side
-            side = OrderSide.BUY if signal.direction == "long" else OrderSide.SELL
+            # Get current position quantity
+            position = portfolio_state.positions.get(signal.symbol)
+            current_quantity = position.quantity if position else Decimal("0")
 
-            # Create order
-            order = OrderRequest(
+            # Determine target quantity and direction
+            direction: Literal["long", "short", "flat"]
+            if signal.direction == "long":
+                target_quantity = quantity
+                direction = "long"
+            else:
+                target_quantity = -quantity
+                direction = "short"
+
+            # Calculate stop price based on volatility
+            stop_distance = volatility * Decimal(str(self.atr_multiple))
+            if direction == "long":
+                stop_price = price - stop_distance
+            else:
+                stop_price = price + stop_distance
+
+            # Create target position
+            target = TargetPosition(
                 symbol=signal.symbol,
-                side=side,
-                order_type=OrderType.MARKET,
-                quantity=quantity,
-                timestamp=signal.normalized_timestamp(),
-                confidence=signal.strength,
+                target_quantity=target_quantity,
+                current_quantity=current_quantity,
+                direction=direction,
+                signal_strength=signal.strength,
+                stop_price=stop_price,
             )
-            orders.append(order)
+            targets.append(target)
 
-        return orders
+        return targets

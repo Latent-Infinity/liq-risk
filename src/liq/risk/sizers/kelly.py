@@ -1,10 +1,6 @@
-"""Fixed fractional position sizing.
+"""Kelly criterion position sizer.
 
-FixedFractionalSizer allocates a fixed percentage of equity to each position,
-providing simple and predictable position sizing.
-
-Formula:
-    quantity = (equity * fraction) / price
+KellySizer: Sizes positions using Kelly criterion for optimal growth.
 """
 
 from __future__ import annotations
@@ -21,38 +17,29 @@ if TYPE_CHECKING:
     from liq.risk.config import MarketState, RiskConfig
 
 
-class FixedFractionalSizer:
-    """Allocate fixed percentage of equity to each position.
+class KellySizer:
+    """Position sizer using Kelly criterion.
 
-    Simple sizing strategy that allocates a constant fraction of
-    portfolio equity to each new position.
+    The Kelly criterion determines the optimal bet size to maximize
+    long-term geometric growth. We use signal strength as a proxy
+    for win probability.
 
-    Attributes:
-        fraction: Fraction of equity to allocate per position (0, 1].
+    Formula:
+        Full Kelly: f* = 2p - 1 (for symmetric returns where b=1)
+        Where p = win probability (signal strength)
+
+    We apply fractional Kelly (from config) for safety:
+        Actual fraction = f* × kelly_fraction
 
     Example:
-        >>> sizer = FixedFractionalSizer(fraction=0.02)  # 2% per position
+        >>> sizer = KellySizer()
         >>> targets = sizer.size_positions(signals, portfolio, market, config)
+
+    With strength=0.75 and quarter Kelly (0.25):
+        - Full Kelly: f* = 2 * 0.75 - 1 = 0.5 (50%)
+        - Quarter Kelly: 0.5 * 0.25 = 0.125 (12.5%)
+        - Position = equity × 0.125
     """
-
-    def __init__(self, fraction: float = 0.02) -> None:
-        """Initialize FixedFractionalSizer.
-
-        Args:
-            fraction: Fraction of equity to allocate per position.
-                     Must be in range (0, 1]. Default is 0.02 (2%).
-
-        Raises:
-            ValueError: If fraction is not in valid range.
-        """
-        if fraction <= 0 or fraction > 1:
-            raise ValueError(f"fraction must be in range (0, 1], got {fraction}")
-        self._fraction = fraction
-
-    @property
-    def fraction(self) -> float:
-        """Get the allocation fraction."""
-        return self._fraction
 
     def size_positions(
         self,
@@ -61,19 +48,24 @@ class FixedFractionalSizer:
         market_state: MarketState,
         risk_config: RiskConfig,
     ) -> list[TargetPosition]:
-        """Size positions using fixed fraction of equity.
+        """Size positions using Kelly criterion.
 
         Args:
             signals: Trading signals to size.
             portfolio_state: Current portfolio snapshot.
             market_state: Current market conditions.
-            risk_config: Risk parameters (not used, kept for protocol).
+            risk_config: Risk parameters.
 
         Returns:
             List of TargetPosition objects with target quantities.
         """
-        targets: list[TargetPosition] = []
+        if not signals:
+            return []
+
         equity = portfolio_state.equity
+        kelly_fraction = Decimal(str(risk_config.kelly_fraction))
+
+        targets: list[TargetPosition] = []
 
         for signal in signals:
             # Skip flat signals
@@ -85,21 +77,24 @@ class FixedFractionalSizer:
             if bar is None:
                 continue
 
-            # Use close price for sizing
-            price = bar.close
+            # Calculate Kelly fraction
+            # p = signal strength (win probability proxy)
+            # Full Kelly for symmetric returns: f* = 2p - 1
+            p = Decimal(str(signal.strength))
+            full_kelly = 2 * p - 1
 
-            if price <= 0:
+            # If no edge (f* <= 0), skip this signal
+            if full_kelly <= 0:
                 continue
 
-            # Calculate quantity using fixed fractional formula
-            # qty = (equity * fraction) / price
-            allocation = equity * Decimal(str(self._fraction))
-            raw_quantity = allocation / price
+            # Apply fractional Kelly for safety
+            position_fraction = full_kelly * kelly_fraction
 
-            # Round down to whole shares
-            quantity = raw_quantity.to_integral_value(rounding=ROUND_DOWN)
+            # Calculate position value and quantity
+            position_value = equity * position_fraction
+            price = bar.close
+            quantity = (position_value / price).to_integral_value(rounding=ROUND_DOWN)
 
-            # Skip if quantity < 1
             if quantity < 1:
                 continue
 
@@ -116,7 +111,6 @@ class FixedFractionalSizer:
                 target_quantity = -quantity
                 direction = "short"
 
-            # Create target position
             target = TargetPosition(
                 symbol=signal.symbol,
                 target_quantity=target_quantity,

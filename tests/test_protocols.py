@@ -272,3 +272,522 @@ class TestConstraintProtocol:
 
         assert len(modified) == 1
         assert modified[0].quantity == Decimal("50")
+
+
+class TestTargetPositionSizerProtocol:
+    """Tests for TargetPositionSizer protocol compliance."""
+
+    def test_protocol_defines_size_positions_method(self) -> None:
+        """TargetPositionSizer protocol must define size_positions method."""
+        from liq.risk.protocols import TargetPositionSizer
+
+        assert hasattr(TargetPositionSizer, "size_positions")
+
+    def test_custom_sizer_conforms_to_protocol(self) -> None:
+        """A class implementing size_positions with TargetPosition return conforms."""
+        from liq.risk.protocols import TargetPositionSizer
+        from liq.risk.types import TargetPosition
+
+        class MockTargetSizer:
+            """Mock sizer that returns TargetPosition."""
+
+            def size_positions(
+                self,
+                signals: list[Signal],
+                portfolio_state: PortfolioState,
+                market_state: MarketState,
+                risk_config: RiskConfig,
+            ) -> list[TargetPosition]:
+                return []
+
+        sizer = MockTargetSizer()
+        assert isinstance(sizer, TargetPositionSizer)
+
+    def test_non_conforming_class_rejected(self) -> None:
+        """A class without size_positions does not conform."""
+        from liq.risk.protocols import TargetPositionSizer
+
+        class NotASizer:
+            """Class that does not implement the protocol."""
+
+            def some_method(self) -> None:
+                pass
+
+        not_sizer = NotASizer()
+        assert not isinstance(not_sizer, TargetPositionSizer)
+
+    def test_sizer_returns_target_positions(self) -> None:
+        """TargetPositionSizer.size_positions returns list of TargetPosition."""
+        from liq.risk import MarketState, RiskConfig
+        from liq.risk.types import TargetPosition
+
+        now = datetime.now(UTC)
+
+        class SimpleTargetSizer:
+            """Simple sizer that returns TargetPositions."""
+
+            def size_positions(
+                self,
+                signals: list[Signal],
+                portfolio_state: PortfolioState,
+                market_state: MarketState,
+                risk_config: RiskConfig,
+            ) -> list[TargetPosition]:
+                targets = []
+                for signal in signals:
+                    if signal.direction == "long":
+                        direction = "long"
+                        target_qty = Decimal("100")
+                    elif signal.direction == "short":
+                        direction = "short"
+                        target_qty = Decimal("-100")
+                    else:
+                        direction = "flat"
+                        target_qty = Decimal("0")
+                    # Get current position
+                    current = portfolio_state.positions.get(signal.symbol)
+                    current_qty = current.quantity if current else Decimal("0")
+                    targets.append(
+                        TargetPosition(
+                            symbol=signal.symbol,
+                            target_quantity=target_qty,
+                            current_quantity=current_qty,
+                            direction=direction,
+                            signal_strength=signal.strength,
+                        )
+                    )
+                return targets
+
+        sizer = SimpleTargetSizer()
+        portfolio = PortfolioState(
+            cash=Decimal("100000"),
+            positions={},
+            timestamp=now,
+        )
+        market = MarketState(
+            current_bars={},
+            volatility={},
+            liquidity={},
+            timestamp=now,
+        )
+        config = RiskConfig()
+        signals = [
+            Signal(symbol="AAPL", timestamp=now, direction="long", strength=0.8),
+        ]
+
+        targets = sizer.size_positions(signals, portfolio, market, config)
+
+        assert len(targets) == 1
+        assert targets[0].symbol == "AAPL"
+        assert targets[0].target_quantity == Decimal("100")
+        assert targets[0].direction == "long"
+        assert targets[0].signal_strength == 0.8
+
+    def test_target_sizer_calculates_delta(self) -> None:
+        """TargetPositionSizer result includes correct delta calculation."""
+        from liq.core import Position
+
+        from liq.risk import MarketState, RiskConfig
+        from liq.risk.types import TargetPosition
+
+        now = datetime.now(UTC)
+
+        class DeltaAwareSizer:
+            """Sizer that considers existing positions."""
+
+            def size_positions(
+                self,
+                signals: list[Signal],
+                portfolio_state: PortfolioState,
+                market_state: MarketState,
+                risk_config: RiskConfig,
+            ) -> list[TargetPosition]:
+                targets = []
+                for signal in signals:
+                    current = portfolio_state.positions.get(signal.symbol)
+                    current_qty = current.quantity if current else Decimal("0")
+                    targets.append(
+                        TargetPosition(
+                            symbol=signal.symbol,
+                            target_quantity=Decimal("150"),
+                            current_quantity=current_qty,
+                            direction="long",
+                        )
+                    )
+                return targets
+
+        sizer = DeltaAwareSizer()
+        # Portfolio has existing position of 50
+        portfolio = PortfolioState(
+            cash=Decimal("100000"),
+            positions={
+                "AAPL": Position(
+                    symbol="AAPL",
+                    quantity=Decimal("50"),
+                    average_price=Decimal("150.00"),
+                    realized_pnl=Decimal("0"),
+                    timestamp=now,
+                )
+            },
+            timestamp=now,
+        )
+        market = MarketState(
+            current_bars={},
+            volatility={},
+            liquidity={},
+            timestamp=now,
+        )
+        config = RiskConfig()
+        signals = [
+            Signal(symbol="AAPL", timestamp=now, direction="long", strength=0.9),
+        ]
+
+        targets = sizer.size_positions(signals, portfolio, market, config)
+
+        assert len(targets) == 1
+        assert targets[0].target_quantity == Decimal("150")
+        assert targets[0].current_quantity == Decimal("50")
+        assert targets[0].delta_quantity == Decimal("100")
+
+
+class TestStructuredConstraintProtocol:
+    """Tests for StructuredConstraint protocol compliance."""
+
+    def test_protocol_defines_required_members(self) -> None:
+        """StructuredConstraint protocol must define name, apply, and classify_risk."""
+        from liq.risk.protocols import StructuredConstraint
+
+        assert hasattr(StructuredConstraint, "name")
+        assert hasattr(StructuredConstraint, "apply")
+        assert hasattr(StructuredConstraint, "classify_risk")
+
+    def test_custom_constraint_conforms_to_protocol(self) -> None:
+        """A class implementing all required members conforms."""
+        from liq.risk.protocols import StructuredConstraint
+        from liq.risk.types import ConstraintResult
+
+        class MockStructuredConstraint:
+            """Mock constraint that returns ConstraintResult."""
+
+            @property
+            def name(self) -> str:
+                return "MockConstraint"
+
+            def apply(
+                self,
+                orders: list[OrderRequest],
+                portfolio_state: PortfolioState,
+                market_state: MarketState,
+                risk_config: RiskConfig,
+            ) -> ConstraintResult:
+                return ConstraintResult(orders=orders, rejected=[])
+
+            def classify_risk(
+                self,
+                order: OrderRequest,
+                portfolio_state: PortfolioState,
+            ) -> bool:
+                return True
+
+        constraint = MockStructuredConstraint()
+        assert isinstance(constraint, StructuredConstraint)
+
+    def test_missing_name_not_conforming(self) -> None:
+        """A class without name property does not conform."""
+        from liq.risk.protocols import StructuredConstraint
+        from liq.risk.types import ConstraintResult
+
+        class MissingName:
+            """Constraint without name property."""
+
+            def apply(
+                self,
+                orders: list[OrderRequest],
+                portfolio_state: PortfolioState,
+                market_state: MarketState,
+                risk_config: RiskConfig,
+            ) -> ConstraintResult:
+                return ConstraintResult(orders=orders, rejected=[])
+
+            def classify_risk(
+                self,
+                order: OrderRequest,
+                portfolio_state: PortfolioState,
+            ) -> bool:
+                return True
+
+        constraint = MissingName()
+        assert not isinstance(constraint, StructuredConstraint)
+
+    def test_missing_classify_risk_not_conforming(self) -> None:
+        """A class without classify_risk method does not conform."""
+        from liq.risk.protocols import StructuredConstraint
+        from liq.risk.types import ConstraintResult
+
+        class MissingClassifyRisk:
+            """Constraint without classify_risk method."""
+
+            @property
+            def name(self) -> str:
+                return "MissingClassifyRisk"
+
+            def apply(
+                self,
+                orders: list[OrderRequest],
+                portfolio_state: PortfolioState,
+                market_state: MarketState,
+                risk_config: RiskConfig,
+            ) -> ConstraintResult:
+                return ConstraintResult(orders=orders, rejected=[])
+
+        constraint = MissingClassifyRisk()
+        assert not isinstance(constraint, StructuredConstraint)
+
+    def test_constraint_returns_constraint_result(self) -> None:
+        """StructuredConstraint.apply returns ConstraintResult."""
+        from liq.risk import MarketState, RiskConfig
+        from liq.risk.types import ConstraintResult, RejectedOrder
+
+        now = datetime.now(UTC)
+
+        class MaxQuantityStructuredConstraint:
+            """Constraint that tracks rejections."""
+
+            def __init__(self, max_quantity: Decimal) -> None:
+                self.max_quantity = max_quantity
+
+            @property
+            def name(self) -> str:
+                return "MaxQuantityConstraint"
+
+            def apply(
+                self,
+                orders: list[OrderRequest],
+                portfolio_state: PortfolioState,
+                market_state: MarketState,
+                risk_config: RiskConfig,
+            ) -> ConstraintResult:
+                passed = []
+                rejected = []
+                for order in orders:
+                    if order.quantity <= self.max_quantity:
+                        passed.append(order)
+                    else:
+                        rejected.append(
+                            RejectedOrder(
+                                order=order,
+                                constraint_name=self.name,
+                                reason=f"Quantity {order.quantity} exceeds max {self.max_quantity}",
+                            )
+                        )
+                return ConstraintResult(orders=passed, rejected=rejected)
+
+            def classify_risk(
+                self,
+                order: OrderRequest,
+                portfolio_state: PortfolioState,
+            ) -> bool:
+                # Buy orders are risk-increasing
+                return order.side == OrderSide.BUY
+
+        constraint = MaxQuantityStructuredConstraint(max_quantity=Decimal("50"))
+        portfolio = PortfolioState(
+            cash=Decimal("100000"),
+            positions={},
+            timestamp=now,
+        )
+        market = MarketState(
+            current_bars={},
+            volatility={},
+            liquidity={},
+            timestamp=now,
+        )
+        config = RiskConfig()
+
+        orders = [
+            OrderRequest(
+                symbol="AAPL",
+                side=OrderSide.BUY,
+                order_type=OrderType.MARKET,
+                quantity=Decimal("100"),
+                timestamp=now,
+            ),
+            OrderRequest(
+                symbol="GOOGL",
+                side=OrderSide.BUY,
+                order_type=OrderType.MARKET,
+                quantity=Decimal("25"),
+                timestamp=now,
+            ),
+        ]
+
+        result = constraint.apply(orders, portfolio, market, config)
+
+        assert isinstance(result, ConstraintResult)
+        assert len(result.orders) == 1
+        assert result.orders[0].symbol == "GOOGL"
+        assert len(result.rejected) == 1
+        assert result.rejected[0].order.symbol == "AAPL"
+        assert result.rejected[0].constraint_name == "MaxQuantityConstraint"
+        assert "exceeds max" in result.rejected[0].reason
+
+    def test_classify_risk_identifies_risk_increasing(self) -> None:
+        """classify_risk correctly identifies risk-increasing orders."""
+        from liq.core import Position
+
+        from liq.risk.types import ConstraintResult
+
+        now = datetime.now(UTC)
+
+        class PositionAwareConstraint:
+            """Constraint that checks position direction."""
+
+            @property
+            def name(self) -> str:
+                return "PositionAwareConstraint"
+
+            def apply(
+                self,
+                orders: list[OrderRequest],
+                portfolio_state: PortfolioState,
+                market_state: MarketState,
+                risk_config: RiskConfig,
+            ) -> ConstraintResult:
+                return ConstraintResult(orders=orders, rejected=[])
+
+            def classify_risk(
+                self,
+                order: OrderRequest,
+                portfolio_state: PortfolioState,
+            ) -> bool:
+                """Risk-increasing if adding to position or opening new."""
+                position = portfolio_state.positions.get(order.symbol)
+                if position is None:
+                    # New position is always risk-increasing
+                    return True
+                # Adding to long position with buy = risk-increasing
+                if position.quantity > 0 and order.side == OrderSide.BUY:
+                    return True
+                # Adding to short position with sell = risk-increasing
+                if position.quantity < 0 and order.side == OrderSide.SELL:
+                    return True
+                # Reducing position is risk-reducing
+                return False
+
+        constraint = PositionAwareConstraint()
+
+        # Empty portfolio - any order is risk-increasing
+        empty_portfolio = PortfolioState(
+            cash=Decimal("100000"),
+            positions={},
+            timestamp=now,
+        )
+        buy_order = OrderRequest(
+            symbol="AAPL",
+            side=OrderSide.BUY,
+            order_type=OrderType.MARKET,
+            quantity=Decimal("100"),
+            timestamp=now,
+        )
+        assert constraint.classify_risk(buy_order, empty_portfolio) is True
+
+        # Long position - sell is risk-reducing
+        long_portfolio = PortfolioState(
+            cash=Decimal("100000"),
+            positions={
+                "AAPL": Position(
+                    symbol="AAPL",
+                    quantity=Decimal("100"),
+                    average_price=Decimal("150.00"),
+                    realized_pnl=Decimal("0"),
+                    timestamp=now,
+                )
+            },
+            timestamp=now,
+        )
+        sell_order = OrderRequest(
+            symbol="AAPL",
+            side=OrderSide.SELL,
+            order_type=OrderType.MARKET,
+            quantity=Decimal("50"),
+            timestamp=now,
+        )
+        assert constraint.classify_risk(sell_order, long_portfolio) is False
+
+        # Long position - buy is risk-increasing
+        assert constraint.classify_risk(buy_order, long_portfolio) is True
+
+    def test_constraint_with_warnings(self) -> None:
+        """StructuredConstraint can include warnings in result."""
+        from liq.risk import MarketState, RiskConfig
+        from liq.risk.types import ConstraintResult
+
+        now = datetime.now(UTC)
+
+        class WarningConstraint:
+            """Constraint that adds warnings when approaching limits."""
+
+            @property
+            def name(self) -> str:
+                return "WarningConstraint"
+
+            def apply(
+                self,
+                orders: list[OrderRequest],
+                portfolio_state: PortfolioState,
+                market_state: MarketState,
+                risk_config: RiskConfig,
+            ) -> ConstraintResult:
+                warnings = []
+                # Add warning if total quantity is high
+                total_qty = sum(o.quantity for o in orders)
+                if total_qty > Decimal("500"):
+                    warnings.append(f"High total quantity: {total_qty}")
+                return ConstraintResult(
+                    orders=orders, rejected=[], warnings=warnings
+                )
+
+            def classify_risk(
+                self,
+                order: OrderRequest,
+                portfolio_state: PortfolioState,
+            ) -> bool:
+                return order.side == OrderSide.BUY
+
+        constraint = WarningConstraint()
+        portfolio = PortfolioState(
+            cash=Decimal("100000"),
+            positions={},
+            timestamp=now,
+        )
+        market = MarketState(
+            current_bars={},
+            volatility={},
+            liquidity={},
+            timestamp=now,
+        )
+        config = RiskConfig()
+
+        orders = [
+            OrderRequest(
+                symbol="AAPL",
+                side=OrderSide.BUY,
+                order_type=OrderType.MARKET,
+                quantity=Decimal("300"),
+                timestamp=now,
+            ),
+            OrderRequest(
+                symbol="GOOGL",
+                side=OrderSide.BUY,
+                order_type=OrderType.MARKET,
+                quantity=Decimal("300"),
+                timestamp=now,
+            ),
+        ]
+
+        result = constraint.apply(orders, portfolio, market, config)
+
+        assert len(result.orders) == 2
+        assert len(result.rejected) == 0
+        assert len(result.warnings) == 1
+        assert "High total quantity" in result.warnings[0]

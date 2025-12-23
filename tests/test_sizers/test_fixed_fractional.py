@@ -6,6 +6,10 @@ FixedFractionalSizer Formula:
     quantity = (equity * fraction) / price
 
 Simple sizing: allocate X% of equity to each signal.
+
+Note: Sizers now return TargetPosition instead of OrderRequest.
+TargetPosition has target_quantity (positive for long, negative for short)
+and direction ("long", "short", "flat").
 """
 
 from __future__ import annotations
@@ -16,7 +20,7 @@ from decimal import Decimal
 import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
-from liq.core import Bar, OrderSide, OrderType, PortfolioState
+from liq.core import Bar, PortfolioState
 from liq.signals import Signal
 
 from liq.risk import MarketState, RiskConfig
@@ -70,9 +74,9 @@ class TestFixedFractionalSizerBasic:
             timestamp=now,
         )
 
-        orders = sizer.size_positions([], portfolio, market, config)
+        targets = sizer.size_positions([], portfolio, market, config)
 
-        assert orders == []
+        assert targets == []
 
     def test_flat_signals_produce_no_orders(self) -> None:
         """Flat signals should not produce orders."""
@@ -103,12 +107,12 @@ class TestFixedFractionalSizerBasic:
         )
         signals = [Signal(symbol="AAPL", timestamp=now, direction="flat", strength=0.5)]
 
-        orders = sizer.size_positions(signals, portfolio, market, config)
+        targets = sizer.size_positions(signals, portfolio, market, config)
 
-        assert orders == []
+        assert targets == []
 
-    def test_long_signal_produces_buy_order(self) -> None:
-        """Long signal should produce a BUY order."""
+    def test_long_signal_produces_long_target(self) -> None:
+        """Long signal should produce a long TargetPosition."""
         from liq.risk.sizers import FixedFractionalSizer
 
         now = datetime.now(UTC)
@@ -136,15 +140,15 @@ class TestFixedFractionalSizerBasic:
         )
         signals = [Signal(symbol="AAPL", timestamp=now, direction="long", strength=0.8)]
 
-        orders = sizer.size_positions(signals, portfolio, market, config)
+        targets = sizer.size_positions(signals, portfolio, market, config)
 
-        assert len(orders) == 1
-        assert orders[0].symbol == "AAPL"
-        assert orders[0].side == OrderSide.BUY
-        assert orders[0].order_type == OrderType.MARKET
+        assert len(targets) == 1
+        assert targets[0].symbol == "AAPL"
+        assert targets[0].direction == "long"
+        assert targets[0].target_quantity > 0
 
-    def test_short_signal_produces_sell_order(self) -> None:
-        """Short signal should produce a SELL order."""
+    def test_short_signal_produces_short_target(self) -> None:
+        """Short signal should produce a short TargetPosition."""
         from liq.risk.sizers import FixedFractionalSizer
 
         now = datetime.now(UTC)
@@ -172,11 +176,12 @@ class TestFixedFractionalSizerBasic:
         )
         signals = [Signal(symbol="AAPL", timestamp=now, direction="short", strength=0.8)]
 
-        orders = sizer.size_positions(signals, portfolio, market, config)
+        targets = sizer.size_positions(signals, portfolio, market, config)
 
-        assert len(orders) == 1
-        assert orders[0].symbol == "AAPL"
-        assert orders[0].side == OrderSide.SELL
+        assert len(targets) == 1
+        assert targets[0].symbol == "AAPL"
+        assert targets[0].direction == "short"
+        assert targets[0].target_quantity < 0  # Negative for short
 
 
 class TestFixedFractionalSizerFormula:
@@ -212,11 +217,11 @@ class TestFixedFractionalSizerFormula:
         )
         signals = [Signal(symbol="AAPL", timestamp=now, direction="long", strength=1.0)]
 
-        orders = sizer.size_positions(signals, portfolio, market, config)
+        targets = sizer.size_positions(signals, portfolio, market, config)
 
-        assert len(orders) == 1
+        assert len(targets) == 1
         # qty = (100000 * 0.02) / 100 = 20
-        assert orders[0].quantity == Decimal("20")
+        assert targets[0].target_quantity == Decimal("20")
 
     def test_higher_fraction_larger_position(self) -> None:
         """Higher fraction should result in larger position size."""
@@ -249,10 +254,10 @@ class TestFixedFractionalSizerFormula:
         sizer_small = FixedFractionalSizer(fraction=0.01)
         sizer_large = FixedFractionalSizer(fraction=0.05)
 
-        orders_small = sizer_small.size_positions(signals, portfolio, market, config)
-        orders_large = sizer_large.size_positions(signals, portfolio, market, config)
+        targets_small = sizer_small.size_positions(signals, portfolio, market, config)
+        targets_large = sizer_large.size_positions(signals, portfolio, market, config)
 
-        assert orders_large[0].quantity > orders_small[0].quantity
+        assert targets_large[0].target_quantity > targets_small[0].target_quantity
 
     def test_higher_equity_larger_position(self) -> None:
         """Higher equity should result in larger position size."""
@@ -290,10 +295,10 @@ class TestFixedFractionalSizerFormula:
             timestamp=now,
         )
 
-        orders_small = sizer.size_positions(signals, portfolio_small, market, config)
-        orders_large = sizer.size_positions(signals, portfolio_large, market, config)
+        targets_small = sizer.size_positions(signals, portfolio_small, market, config)
+        targets_large = sizer.size_positions(signals, portfolio_large, market, config)
 
-        assert orders_large[0].quantity > orders_small[0].quantity
+        assert targets_large[0].target_quantity > targets_small[0].target_quantity
 
     def test_higher_price_smaller_position(self) -> None:
         """Higher price should result in smaller position size (fewer shares)."""
@@ -336,10 +341,10 @@ class TestFixedFractionalSizerFormula:
         signals_cheap = [Signal(symbol="CHEAP", timestamp=now, direction="long", strength=1.0)]
         signals_expensive = [Signal(symbol="EXPENSIVE", timestamp=now, direction="long", strength=1.0)]
 
-        orders_cheap = sizer.size_positions(signals_cheap, portfolio, market, config)
-        orders_expensive = sizer.size_positions(signals_expensive, portfolio, market, config)
+        targets_cheap = sizer.size_positions(signals_cheap, portfolio, market, config)
+        targets_expensive = sizer.size_positions(signals_expensive, portfolio, market, config)
 
-        assert orders_cheap[0].quantity > orders_expensive[0].quantity
+        assert targets_cheap[0].target_quantity > targets_expensive[0].target_quantity
 
     def test_uses_close_price(self) -> None:
         """Should use close price for sizing."""
@@ -371,10 +376,10 @@ class TestFixedFractionalSizerFormula:
         )
         signals = [Signal(symbol="AAPL", timestamp=now, direction="long", strength=1.0)]
 
-        orders = sizer.size_positions(signals, portfolio, market, config)
+        targets = sizer.size_positions(signals, portfolio, market, config)
 
         # qty = (100000 * 0.02) / 50 = 2000 / 50 = 40
-        assert orders[0].quantity == Decimal("40")
+        assert targets[0].target_quantity == Decimal("40")
 
 
 class TestFixedFractionalSizerEdgeCases:
@@ -400,9 +405,9 @@ class TestFixedFractionalSizerEdgeCases:
         )
         signals = [Signal(symbol="AAPL", timestamp=now, direction="long", strength=0.8)]
 
-        orders = sizer.size_positions(signals, portfolio, market, config)
+        targets = sizer.size_positions(signals, portfolio, market, config)
 
-        assert orders == []
+        assert targets == []
 
     def test_quantity_rounded_down_to_whole_shares(self) -> None:
         """Quantity should be rounded down to whole shares."""
@@ -434,10 +439,10 @@ class TestFixedFractionalSizerEdgeCases:
         )
         signals = [Signal(symbol="AAPL", timestamp=now, direction="long", strength=1.0)]
 
-        orders = sizer.size_positions(signals, portfolio, market, config)
+        targets = sizer.size_positions(signals, portfolio, market, config)
 
         # Should round down to 60 (not 61)
-        assert orders[0].quantity == Decimal("60")
+        assert targets[0].target_quantity == Decimal("60")
 
     def test_quantity_less_than_one_skips_signal(self) -> None:
         """If calculated quantity < 1, signal should be skipped."""
@@ -468,13 +473,13 @@ class TestFixedFractionalSizerEdgeCases:
         )
         signals = [Signal(symbol="AAPL", timestamp=now, direction="long", strength=1.0)]
 
-        orders = sizer.size_positions(signals, portfolio, market, config)
+        targets = sizer.size_positions(signals, portfolio, market, config)
 
         # qty = (1000 * 0.001) / 500 = 1 / 500 = 0.002 -> rounds to 0
-        assert orders == []
+        assert targets == []
 
     def test_multiple_signals_processed(self) -> None:
-        """Multiple signals should produce multiple orders."""
+        """Multiple signals should produce multiple targets."""
         from liq.risk.sizers import FixedFractionalSizer
 
         now = datetime.now(UTC)
@@ -514,10 +519,10 @@ class TestFixedFractionalSizerEdgeCases:
             Signal(symbol="GOOGL", timestamp=now, direction="short", strength=0.6),
         ]
 
-        orders = sizer.size_positions(signals, portfolio, market, config)
+        targets = sizer.size_positions(signals, portfolio, market, config)
 
-        assert len(orders) == 2
-        symbols = {o.symbol for o in orders}
+        assert len(targets) == 2
+        symbols = {t.symbol for t in targets}
         assert symbols == {"AAPL", "GOOGL"}
 
     def test_fraction_validation(self) -> None:
@@ -553,7 +558,7 @@ class TestFixedFractionalSizerPropertyBased:
         fraction: float,
         price: Decimal,
     ) -> None:
-        """Calculated quantity should always be >= 0."""
+        """Calculated quantity should always be >= 0 for long positions."""
         from liq.risk.sizers import FixedFractionalSizer
 
         now = datetime.now(UTC)
@@ -581,11 +586,11 @@ class TestFixedFractionalSizerPropertyBased:
         )
         signals = [Signal(symbol="TEST", timestamp=now, direction="long", strength=1.0)]
 
-        orders = sizer.size_positions(signals, portfolio, market, config)
+        targets = sizer.size_positions(signals, portfolio, market, config)
 
-        # Either no order (qty < 1) or positive quantity
-        if orders:
-            assert orders[0].quantity >= 1
+        # Either no target (qty < 1) or positive target_quantity for long
+        if targets:
+            assert targets[0].target_quantity >= 1
 
     @given(
         fraction1=st.floats(min_value=0.01, max_value=0.5),
@@ -630,11 +635,11 @@ class TestFixedFractionalSizerPropertyBased:
         sizer1 = FixedFractionalSizer(fraction=fraction1)
         sizer2 = FixedFractionalSizer(fraction=fraction2)
 
-        orders1 = sizer1.size_positions(signals, portfolio, market, config)
-        orders2 = sizer2.size_positions(signals, portfolio, market, config)
+        targets1 = sizer1.size_positions(signals, portfolio, market, config)
+        targets2 = sizer2.size_positions(signals, portfolio, market, config)
 
-        qty1 = orders1[0].quantity if orders1 else Decimal("0")
-        qty2 = orders2[0].quantity if orders2 else Decimal("0")
+        qty1 = targets1[0].target_quantity if targets1 else Decimal("0")
+        qty2 = targets2[0].target_quantity if targets2 else Decimal("0")
 
         # Higher fraction should mean larger or equal position
         if fraction1 > fraction2:

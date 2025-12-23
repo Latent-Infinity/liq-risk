@@ -5,9 +5,12 @@ MinPositionValueConstraint: Filters out orders below minimum notional value.
 
 from __future__ import annotations
 
+from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from liq.core import OrderRequest, OrderSide
+
+from liq.risk.types import ConstraintResult, RejectedOrder
 
 if TYPE_CHECKING:
     from liq.core import PortfolioState
@@ -23,8 +26,37 @@ class MinPositionValueConstraint:
 
     Example:
         >>> constraint = MinPositionValueConstraint()
-        >>> orders = constraint.apply(orders, portfolio, market, config)
+        >>> result = constraint.apply(orders, portfolio, market, config)
+        >>> for r in result.rejected:
+        ...     print(f"Rejected {r.order.symbol}: {r.reason}")
     """
+
+    @property
+    def name(self) -> str:
+        """Human-readable constraint name for logging and audit."""
+        return "MinPositionValueConstraint"
+
+    def classify_risk(
+        self,
+        order: OrderRequest,
+        portfolio_state: PortfolioState,
+    ) -> bool:
+        """Classify if this order is risk-increasing.
+
+        Args:
+            order: The order to classify.
+            portfolio_state: Current portfolio for context.
+
+        Returns:
+            True if risk-increasing, False if risk-reducing.
+        """
+        position = portfolio_state.positions.get(order.symbol)
+        current_qty = position.quantity if position else Decimal("0")
+
+        if order.side == OrderSide.BUY:
+            return current_qty >= 0
+        else:
+            return current_qty <= 0
 
     def apply(
         self,
@@ -32,7 +64,7 @@ class MinPositionValueConstraint:
         portfolio_state: PortfolioState,
         market_state: MarketState,
         risk_config: RiskConfig,
-    ) -> list[OrderRequest]:
+    ) -> ConstraintResult:
         """Apply minimum value constraint.
 
         Args:
@@ -42,9 +74,12 @@ class MinPositionValueConstraint:
             risk_config: Risk parameters.
 
         Returns:
-            Filtered order list with orders below minimum removed.
+            ConstraintResult with passed orders, rejected orders, and warnings.
         """
         result: list[OrderRequest] = []
+        rejected: list[RejectedOrder] = []
+        warnings: list[str] = []
+
         min_value = risk_config.min_position_value
 
         for order in orders:
@@ -56,6 +91,13 @@ class MinPositionValueConstraint:
             # Get bar data for price
             bar = market_state.current_bars.get(order.symbol)
             if bar is None:
+                rejected.append(
+                    RejectedOrder(
+                        order=order,
+                        constraint_name=self.name,
+                        reason=f"No bar data for {order.symbol}",
+                    )
+                )
                 continue
 
             price = bar.close
@@ -63,5 +105,13 @@ class MinPositionValueConstraint:
 
             if order_value >= min_value:
                 result.append(order)
+            else:
+                rejected.append(
+                    RejectedOrder(
+                        order=order,
+                        constraint_name=self.name,
+                        reason=f"Order value ${order_value:.2f} below minimum ${min_value:.2f}",
+                    )
+                )
 
-        return result
+        return ConstraintResult(orders=result, rejected=rejected, warnings=warnings)

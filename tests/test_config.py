@@ -286,6 +286,23 @@ class TestMarketState:
                 timestamp=naive_time,
             )
 
+    def test_with_borrow_rates(self) -> None:
+        """MarketState with per-symbol borrow rates."""
+        from liq.risk import MarketState
+
+        now = datetime.now(UTC)
+        state = MarketState(
+            current_bars={},
+            volatility={},
+            liquidity={},
+            borrow_rates={"GME": Decimal("0.50"), "AMC": Decimal("0.35")},
+            timestamp=now,
+        )
+
+        assert state.borrow_rates is not None
+        assert state.borrow_rates["GME"] == Decimal("0.50")  # 50% annual
+        assert state.borrow_rates["AMC"] == Decimal("0.35")  # 35% annual
+
     def test_immutable(self) -> None:
         """MarketState should be frozen/immutable."""
         from liq.risk import MarketState
@@ -300,3 +317,111 @@ class TestMarketState:
 
         with pytest.raises((TypeError, AttributeError, ValidationError)):
             state.regime = "changed"  # type: ignore[misc]
+
+
+class TestRiskConfigTradingCosts:
+    """Tests for RiskConfig trading cost fields."""
+
+    def test_trading_cost_defaults(self) -> None:
+        """Trading cost fields default to zero."""
+        from liq.risk import RiskConfig
+
+        config = RiskConfig()
+
+        assert config.default_borrow_rate == 0.0
+        assert config.default_slippage_pct == 0.0
+        assert config.default_commission_pct == 0.0
+
+    def test_trading_cost_can_be_set(self) -> None:
+        """Trading cost fields can be customized."""
+        from liq.risk import RiskConfig
+
+        config = RiskConfig(
+            default_borrow_rate=0.02,      # 2% annual
+            default_slippage_pct=0.001,    # 0.1% slippage
+            default_commission_pct=0.0005,  # 0.05% commission
+        )
+
+        assert config.default_borrow_rate == 0.02
+        assert config.default_slippage_pct == 0.001
+        assert config.default_commission_pct == 0.0005
+
+    def test_trading_cost_cannot_be_negative(self) -> None:
+        """Trading cost fields must be non-negative."""
+        from liq.risk import RiskConfig
+
+        with pytest.raises(ValueError, match="default_borrow_rate"):
+            RiskConfig(default_borrow_rate=-0.01)
+
+        with pytest.raises(ValueError, match="default_slippage_pct"):
+            RiskConfig(default_slippage_pct=-0.001)
+
+        with pytest.raises(ValueError, match="default_commission_pct"):
+            RiskConfig(default_commission_pct=-0.0005)
+
+
+class TestRiskConfigLeverageValidation:
+    """Tests for leverage consistency validation."""
+
+    def test_net_leverage_cannot_exceed_gross_leverage(self) -> None:
+        """max_net_leverage cannot be greater than max_gross_leverage."""
+        from liq.risk import RiskConfig
+
+        with pytest.raises(ValueError, match="max_net_leverage.*cannot exceed"):
+            RiskConfig(max_net_leverage=2.0, max_gross_leverage=1.0)
+
+    def test_equal_net_and_gross_leverage_valid(self) -> None:
+        """max_net_leverage can equal max_gross_leverage."""
+        from liq.risk import RiskConfig
+
+        config = RiskConfig(max_net_leverage=1.5, max_gross_leverage=1.5)
+        assert config.max_net_leverage == 1.5
+        assert config.max_gross_leverage == 1.5
+
+    def test_net_leverage_less_than_gross_valid(self) -> None:
+        """max_net_leverage less than max_gross_leverage is valid."""
+        from liq.risk import RiskConfig
+
+        config = RiskConfig(max_net_leverage=0.5, max_gross_leverage=2.0)
+        assert config.max_net_leverage == 0.5
+        assert config.max_gross_leverage == 2.0
+
+    def test_position_limits_exceeding_leverage_warns(self) -> None:
+        """Warning when max_position_pct * max_positions > max_gross_leverage."""
+        import warnings
+
+        from liq.risk import RiskConfig
+
+        # 10% position * 20 positions = 200% > 100% gross leverage
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            RiskConfig(
+                max_position_pct=0.10,
+                max_positions=20,
+                max_gross_leverage=1.0,
+            )
+            # Should have a warning
+            assert len(w) == 1
+            assert "max_position_pct" in str(w[0].message)
+            assert "exceeds" in str(w[0].message)
+
+    def test_position_limits_within_leverage_no_warning(self) -> None:
+        """No warning when max_position_pct * max_positions <= max_gross_leverage."""
+        import warnings
+
+        from liq.risk import RiskConfig
+
+        # 5% position * 10 positions = 50% <= 100% gross leverage
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            RiskConfig(
+                max_position_pct=0.05,
+                max_positions=10,
+                max_gross_leverage=1.0,
+            )
+            # Should have no warnings related to leverage
+            leverage_warnings = [
+                x for x in w
+                if "max_position_pct" in str(x.message) and "exceeds" in str(x.message)
+            ]
+            assert len(leverage_warnings) == 0

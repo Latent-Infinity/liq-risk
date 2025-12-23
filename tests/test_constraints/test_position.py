@@ -11,7 +11,6 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from decimal import Decimal
 
-import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 from liq.core import Bar, OrderRequest, OrderSide, OrderType, PortfolioState, Position
@@ -53,9 +52,9 @@ class TestMaxPositionConstraintBasic:
             timestamp=now,
         )
 
-        result = constraint.apply([], portfolio, market, config)
+        constraint_result = constraint.apply([], portfolio, market, config)
 
-        assert result == []
+        assert constraint_result.orders == []
 
     def test_order_within_limit_passes(self) -> None:
         """Order within position limit should pass unchanged."""
@@ -95,10 +94,10 @@ class TestMaxPositionConstraintBasic:
             )
         ]
 
-        result = constraint.apply(orders, portfolio, market, config)
+        constraint_result = constraint.apply(orders, portfolio, market, config)
 
-        assert len(result) == 1
-        assert result[0].quantity == Decimal("40")
+        assert len(constraint_result.orders) == 1
+        assert constraint_result.orders[0].quantity == Decimal("40")
 
     def test_order_exceeding_limit_reduced(self) -> None:
         """Order exceeding position limit should be reduced."""
@@ -138,11 +137,11 @@ class TestMaxPositionConstraintBasic:
             )
         ]
 
-        result = constraint.apply(orders, portfolio, market, config)
+        constraint_result = constraint.apply(orders, portfolio, market, config)
 
-        assert len(result) == 1
+        assert len(constraint_result.orders) == 1
         # Should be reduced to 50 shares ($5000 = 5%)
-        assert result[0].quantity == Decimal("50")
+        assert constraint_result.orders[0].quantity == Decimal("50")
 
     def test_existing_position_considered(self) -> None:
         """Existing position should be considered when checking limit."""
@@ -191,11 +190,11 @@ class TestMaxPositionConstraintBasic:
             )
         ]
 
-        result = constraint.apply(orders, portfolio, market, config)
+        constraint_result = constraint.apply(orders, portfolio, market, config)
 
-        assert len(result) == 1
+        assert len(constraint_result.orders) == 1
         # Can only add 20 more shares to reach 50 total ($5000)
-        assert result[0].quantity == Decimal("20")
+        assert constraint_result.orders[0].quantity == Decimal("20")
 
     def test_order_reduced_to_zero_filtered_out(self) -> None:
         """Order reduced to zero should be filtered out."""
@@ -242,13 +241,13 @@ class TestMaxPositionConstraintBasic:
             )
         ]
 
-        result = constraint.apply(orders, portfolio, market, config)
+        constraint_result = constraint.apply(orders, portfolio, market, config)
 
         # Order should be filtered out completely
-        assert result == []
+        assert constraint_result.orders == []
 
-    def test_sell_orders_not_limited(self) -> None:
-        """Sell orders should not be limited by max position."""
+    def test_sell_closing_long_not_limited(self) -> None:
+        """Sell orders closing long positions should not be limited."""
         from liq.risk.constraints import MaxPositionConstraint
 
         now = datetime.now(UTC)
@@ -287,15 +286,172 @@ class TestMaxPositionConstraintBasic:
                 symbol="AAPL",
                 side=OrderSide.SELL,
                 order_type=OrderType.MARKET,
-                quantity=Decimal("50"),  # Selling, not buying
+                quantity=Decimal("50"),  # Selling (closing), not buying
                 timestamp=now,
             )
         ]
 
-        result = constraint.apply(orders, portfolio, market, config)
+        constraint_result = constraint.apply(orders, portfolio, market, config)
 
-        assert len(result) == 1
-        assert result[0].quantity == Decimal("50")
+        assert len(constraint_result.orders) == 1
+        assert constraint_result.orders[0].quantity == Decimal("50")
+
+    def test_sell_initiating_short_constrained(self) -> None:
+        """Sell orders initiating short positions should be constrained."""
+        from liq.risk.constraints import MaxPositionConstraint
+
+        now = datetime.now(UTC)
+        constraint = MaxPositionConstraint()
+        config = RiskConfig(max_position_pct=0.05)  # 5% limit = $5000
+        portfolio = PortfolioState(
+            cash=Decimal("100000"),  # No existing positions
+            positions={},
+            timestamp=now,
+        )
+        bar = Bar(
+            timestamp=now,
+            symbol="AAPL",
+            open=Decimal("100"),
+            high=Decimal("102"),
+            low=Decimal("98"),
+            close=Decimal("100"),
+            volume=Decimal("1000000"),
+        )
+        market = MarketState(
+            current_bars={"AAPL": bar},
+            volatility={"AAPL": Decimal("2.00")},
+            liquidity={"AAPL": Decimal("50000000")},
+            timestamp=now,
+        )
+        # Sell 100 shares = $10000 short (exceeds 5% limit)
+        orders = [
+            OrderRequest(
+                symbol="AAPL",
+                side=OrderSide.SELL,
+                order_type=OrderType.MARKET,
+                quantity=Decimal("100"),
+                timestamp=now,
+            )
+        ]
+
+        constraint_result = constraint.apply(orders, portfolio, market, config)
+
+        assert len(constraint_result.orders) == 1
+        # Should be reduced to 50 shares ($5000 = 5%)
+        assert constraint_result.orders[0].quantity == Decimal("50")
+
+    def test_sell_increasing_short_constrained(self) -> None:
+        """Sell orders increasing existing short should be constrained."""
+        from liq.risk.constraints import MaxPositionConstraint
+
+        now = datetime.now(UTC)
+        constraint = MaxPositionConstraint()
+        config = RiskConfig(max_position_pct=0.05)  # 5% limit = $5000
+        # Existing short: -30 shares @ $100 = -$3000 market value
+        # Cash: $100k + $3k proceeds = $103k, Equity = $103k - $3k = $100k
+        portfolio = PortfolioState(
+            cash=Decimal("103000"),
+            positions={
+                "AAPL": Position(
+                    symbol="AAPL",
+                    quantity=Decimal("-30"),  # Short position
+                    average_price=Decimal("100"),
+                    realized_pnl=Decimal("0"),
+                    timestamp=now,
+                )
+            },
+            timestamp=now,
+        )
+        bar = Bar(
+            timestamp=now,
+            symbol="AAPL",
+            open=Decimal("100"),
+            high=Decimal("102"),
+            low=Decimal("98"),
+            close=Decimal("100"),
+            volume=Decimal("1000000"),
+        )
+        market = MarketState(
+            current_bars={"AAPL": bar},
+            volatility={"AAPL": Decimal("2.00")},
+            liquidity={"AAPL": Decimal("50000000")},
+            timestamp=now,
+        )
+        # Current short: $3000 (|-30 * 100|)
+        # Max position: $5000
+        # Room: $5000 - $3000 = $2000 = 20 shares
+        # Want to sell 50 more shares ($5000) - exceeds remaining $2000
+        orders = [
+            OrderRequest(
+                symbol="AAPL",
+                side=OrderSide.SELL,
+                order_type=OrderType.MARKET,
+                quantity=Decimal("50"),
+                timestamp=now,
+            )
+        ]
+
+        constraint_result = constraint.apply(orders, portfolio, market, config)
+
+        assert len(constraint_result.orders) == 1
+        # Should be reduced to 20 shares ($2000 remaining)
+        assert constraint_result.orders[0].quantity == Decimal("20")
+
+    def test_sell_flipping_long_to_short_constrained(self) -> None:
+        """Sell order flipping long to short should constrain the short portion."""
+        from liq.risk.constraints import MaxPositionConstraint
+
+        now = datetime.now(UTC)
+        constraint = MaxPositionConstraint()
+        config = RiskConfig(max_position_pct=0.05)  # 5% limit = $5000
+        # 30 shares long @ $100 = $3000 position
+        # Cash: $97k, Equity: $100k
+        portfolio = PortfolioState(
+            cash=Decimal("97000"),
+            positions={
+                "AAPL": Position(
+                    symbol="AAPL",
+                    quantity=Decimal("30"),
+                    average_price=Decimal("100"),
+                    realized_pnl=Decimal("0"),
+                    timestamp=now,
+                )
+            },
+            timestamp=now,
+        )
+        bar = Bar(
+            timestamp=now,
+            symbol="AAPL",
+            open=Decimal("100"),
+            high=Decimal("102"),
+            low=Decimal("98"),
+            close=Decimal("100"),
+            volume=Decimal("1000000"),
+        )
+        market = MarketState(
+            current_bars={"AAPL": bar},
+            volatility={"AAPL": Decimal("2.00")},
+            liquidity={"AAPL": Decimal("50000000")},
+            timestamp=now,
+        )
+        # Sell 130 shares: first 30 close long, remaining 100 go short ($10k)
+        # Short portion: 100 shares = $10000 (exceeds $5000 limit)
+        # Maximum allowed: close 30 + short 50 = 80 total
+        orders = [
+            OrderRequest(
+                symbol="AAPL",
+                side=OrderSide.SELL,
+                order_type=OrderType.MARKET,
+                quantity=Decimal("130"),
+                timestamp=now,
+            )
+        ]
+
+        constraint_result = constraint.apply(orders, portfolio, market, config)
+
+        assert len(constraint_result.orders) == 1
+        # Should allow: 30 (close long) + 50 (max short) = 80
+        assert constraint_result.orders[0].quantity == Decimal("80")
 
     def test_missing_bar_data_filters_order(self) -> None:
         """Order without bar data should be filtered."""
@@ -325,9 +481,9 @@ class TestMaxPositionConstraintBasic:
             )
         ]
 
-        result = constraint.apply(orders, portfolio, market, config)
+        constraint_result = constraint.apply(orders, portfolio, market, config)
 
-        assert result == []
+        assert constraint_result.orders == []
 
 
 class TestMaxPositionsConstraintProtocol:
@@ -363,9 +519,9 @@ class TestMaxPositionsConstraintBasic:
             timestamp=now,
         )
 
-        result = constraint.apply([], portfolio, market, config)
+        constraint_result = constraint.apply([], portfolio, market, config)
 
-        assert result == []
+        assert constraint_result.orders == []
 
     def test_orders_within_limit_pass(self) -> None:
         """Orders within position count limit should pass."""
@@ -410,9 +566,9 @@ class TestMaxPositionsConstraintBasic:
             ),
         ]
 
-        result = constraint.apply(orders, portfolio, market, config)
+        constraint_result = constraint.apply(orders, portfolio, market, config)
 
-        assert len(result) == 3
+        assert len(constraint_result.orders) == 3
 
     def test_orders_exceeding_limit_filtered(self) -> None:
         """Orders exceeding position count limit should be filtered."""
@@ -460,10 +616,10 @@ class TestMaxPositionsConstraintBasic:
             ),
         ]
 
-        result = constraint.apply(orders, portfolio, market, config)
+        constraint_result = constraint.apply(orders, portfolio, market, config)
 
-        assert len(result) == 2
-        symbols = {o.symbol for o in result}
+        assert len(constraint_result.orders) == 2
+        symbols = {o.symbol for o in constraint_result.orders}
         assert symbols == {"AAPL", "GOOGL"}
 
     def test_existing_positions_counted(self) -> None:
@@ -519,11 +675,11 @@ class TestMaxPositionsConstraintBasic:
             ),
         ]
 
-        result = constraint.apply(orders, portfolio, market, config)
+        constraint_result = constraint.apply(orders, portfolio, market, config)
 
         # Can only add 1 new position (3 - 2 existing = 1)
-        assert len(result) == 1
-        assert result[0].symbol == "AAPL"  # Highest confidence
+        assert len(constraint_result.orders) == 1
+        assert constraint_result.orders[0].symbol == "AAPL"  # Highest confidence
 
     def test_order_for_existing_position_not_counted_as_new(self) -> None:
         """Order for existing position shouldn't count as new position."""
@@ -576,13 +732,13 @@ class TestMaxPositionsConstraintBasic:
             ),
         ]
 
-        result = constraint.apply(orders, portfolio, market, config)
+        constraint_result = constraint.apply(orders, portfolio, market, config)
 
         # Both should pass - adding to existing positions
-        assert len(result) == 2
+        assert len(constraint_result.orders) == 2
 
-    def test_sell_orders_always_pass(self) -> None:
-        """Sell orders should always pass (reduces positions)."""
+    def test_sell_closing_long_always_passes(self) -> None:
+        """Sell orders closing long positions should always pass."""
         from liq.risk.constraints import MaxPositionsConstraint
 
         now = datetime.now(UTC)
@@ -631,10 +787,113 @@ class TestMaxPositionsConstraintBasic:
             ),
         ]
 
-        result = constraint.apply(orders, portfolio, market, config)
+        constraint_result = constraint.apply(orders, portfolio, market, config)
 
-        # Both sells should pass
-        assert len(result) == 2
+        # Both sells closing longs should pass
+        assert len(constraint_result.orders) == 2
+
+    def test_sell_initiating_short_counts_as_new_position(self) -> None:
+        """Sell orders initiating short should count as new position."""
+        from liq.risk.constraints import MaxPositionsConstraint
+
+        now = datetime.now(UTC)
+        constraint = MaxPositionsConstraint()
+        config = RiskConfig(max_positions=2)
+        portfolio = PortfolioState(
+            cash=Decimal("90000"),
+            positions={
+                "AAPL": Position(
+                    symbol="AAPL",
+                    quantity=Decimal("50"),  # Existing long
+                    average_price=Decimal("100"),
+                    realized_pnl=Decimal("0"),
+                    timestamp=now,
+                ),
+            },
+            timestamp=now,
+        )
+        market = MarketState(
+            current_bars={},
+            volatility={},
+            liquidity={},
+            timestamp=now,
+        )
+        # Sell orders for symbols without positions create new short positions
+        # Only room for 1 new position (2 max - 1 existing)
+        orders = [
+            OrderRequest(
+                symbol="GOOGL",  # New short position
+                side=OrderSide.SELL,
+                order_type=OrderType.MARKET,
+                quantity=Decimal("30"),
+                timestamp=now,
+                confidence=0.9,
+            ),
+            OrderRequest(
+                symbol="MSFT",  # Another new short position
+                side=OrderSide.SELL,
+                order_type=OrderType.MARKET,
+                quantity=Decimal("20"),
+                timestamp=now,
+                confidence=0.7,
+            ),
+        ]
+
+        constraint_result = constraint.apply(orders, portfolio, market, config)
+
+        # Only 1 new position allowed
+        assert len(constraint_result.orders) == 1
+        assert constraint_result.orders[0].symbol == "GOOGL"  # Higher confidence
+
+    def test_sell_into_existing_short_not_new_position(self) -> None:
+        """Sell orders into existing short should not count as new position."""
+        from liq.risk.constraints import MaxPositionsConstraint
+
+        now = datetime.now(UTC)
+        constraint = MaxPositionsConstraint()
+        config = RiskConfig(max_positions=2)
+        portfolio = PortfolioState(
+            cash=Decimal("110000"),
+            positions={
+                "AAPL": Position(
+                    symbol="AAPL",
+                    quantity=Decimal("50"),  # Existing long
+                    average_price=Decimal("100"),
+                    realized_pnl=Decimal("0"),
+                    timestamp=now,
+                ),
+                "GOOGL": Position(
+                    symbol="GOOGL",
+                    quantity=Decimal("-20"),  # Existing short
+                    average_price=Decimal("140"),
+                    realized_pnl=Decimal("0"),
+                    timestamp=now,
+                ),
+            },
+            timestamp=now,
+        )
+        market = MarketState(
+            current_bars={},
+            volatility={},
+            liquidity={},
+            timestamp=now,
+        )
+        # Sell more into existing short - should pass (not a new position)
+        orders = [
+            OrderRequest(
+                symbol="GOOGL",  # Adding to existing short
+                side=OrderSide.SELL,
+                order_type=OrderType.MARKET,
+                quantity=Decimal("10"),
+                timestamp=now,
+            ),
+        ]
+
+        constraint_result = constraint.apply(orders, portfolio, market, config)
+
+        # Should pass - adding to existing position
+        assert len(constraint_result.orders) == 1
+        assert constraint_result.orders[0].symbol == "GOOGL"
 
     def test_priority_by_confidence(self) -> None:
         """Orders should be prioritized by confidence when filtering."""
@@ -681,10 +940,10 @@ class TestMaxPositionsConstraintBasic:
             ),
         ]
 
-        result = constraint.apply(orders, portfolio, market, config)
+        constraint_result = constraint.apply(orders, portfolio, market, config)
 
-        assert len(result) == 2
-        symbols = [o.symbol for o in result]
+        assert len(constraint_result.orders) == 2
+        symbols = [o.symbol for o in constraint_result.orders]
         # Should keep HIGH and MED (top 2 by confidence)
         assert symbols == ["HIGH", "MED"]
 
@@ -739,9 +998,225 @@ class TestMaxPositionConstraintPropertyBased:
             )
         ]
 
-        result = constraint.apply(orders, portfolio, market, config)
+        constraint_result = constraint.apply(orders, portfolio, market, config)
 
-        if result:
+        if constraint_result.orders:
             max_value = equity * Decimal(str(max_pct))
-            result_value = result[0].quantity * Decimal("100")
+            result_value = constraint_result.orders[0].quantity * Decimal("100")
             assert result_value <= max_value + Decimal("1")  # Allow rounding tolerance
+
+
+class TestMaxPositionConstraintClassifyRisk:
+    """Tests for MaxPositionConstraint classify_risk method."""
+
+    def test_buy_no_position_is_risk_increasing(self) -> None:
+        """Buying with no existing position increases risk."""
+        from liq.risk.constraints import MaxPositionConstraint
+
+        now = datetime.now(UTC)
+        constraint = MaxPositionConstraint()
+        portfolio = PortfolioState(
+            cash=Decimal("100000"),
+            positions={},
+            timestamp=now,
+        )
+        order = OrderRequest(
+            symbol="AAPL",
+            side=OrderSide.BUY,
+            order_type=OrderType.MARKET,
+            quantity=Decimal("100"),
+            timestamp=now,
+        )
+
+        assert constraint.classify_risk(order, portfolio) is True
+
+    def test_buy_with_long_position_is_risk_increasing(self) -> None:
+        """Buying more when already long increases risk."""
+        from liq.risk.constraints import MaxPositionConstraint
+
+        now = datetime.now(UTC)
+        constraint = MaxPositionConstraint()
+        portfolio = PortfolioState(
+            cash=Decimal("100000"),
+            positions={
+                "AAPL": Position(
+                    symbol="AAPL",
+                    quantity=Decimal("50"),  # Already long
+                    average_price=Decimal("100"),
+                    realized_pnl=Decimal("0"),
+                    timestamp=now,
+                )
+            },
+            timestamp=now,
+        )
+        order = OrderRequest(
+            symbol="AAPL",
+            side=OrderSide.BUY,
+            order_type=OrderType.MARKET,
+            quantity=Decimal("100"),
+            timestamp=now,
+        )
+
+        assert constraint.classify_risk(order, portfolio) is True
+
+    def test_buy_covering_short_is_risk_reducing(self) -> None:
+        """Buying to cover a short position reduces risk."""
+        from liq.risk.constraints import MaxPositionConstraint
+
+        now = datetime.now(UTC)
+        constraint = MaxPositionConstraint()
+        portfolio = PortfolioState(
+            cash=Decimal("100000"),
+            positions={
+                "AAPL": Position(
+                    symbol="AAPL",
+                    quantity=Decimal("-50"),  # Short position
+                    average_price=Decimal("100"),
+                    realized_pnl=Decimal("0"),
+                    timestamp=now,
+                )
+            },
+            timestamp=now,
+        )
+        order = OrderRequest(
+            symbol="AAPL",
+            side=OrderSide.BUY,
+            order_type=OrderType.MARKET,
+            quantity=Decimal("50"),
+            timestamp=now,
+        )
+
+        assert constraint.classify_risk(order, portfolio) is False
+
+    def test_sell_closing_long_is_risk_reducing(self) -> None:
+        """Selling to close a long position reduces risk."""
+        from liq.risk.constraints import MaxPositionConstraint
+
+        now = datetime.now(UTC)
+        constraint = MaxPositionConstraint()
+        portfolio = PortfolioState(
+            cash=Decimal("100000"),
+            positions={
+                "AAPL": Position(
+                    symbol="AAPL",
+                    quantity=Decimal("100"),  # Long position
+                    average_price=Decimal("100"),
+                    realized_pnl=Decimal("0"),
+                    timestamp=now,
+                )
+            },
+            timestamp=now,
+        )
+        order = OrderRequest(
+            symbol="AAPL",
+            side=OrderSide.SELL,
+            order_type=OrderType.MARKET,
+            quantity=Decimal("50"),
+            timestamp=now,
+        )
+
+        assert constraint.classify_risk(order, portfolio) is False
+
+    def test_sell_initiating_short_is_risk_increasing(self) -> None:
+        """Selling to initiate short increases risk."""
+        from liq.risk.constraints import MaxPositionConstraint
+
+        now = datetime.now(UTC)
+        constraint = MaxPositionConstraint()
+        portfolio = PortfolioState(
+            cash=Decimal("100000"),
+            positions={},
+            timestamp=now,
+        )
+        order = OrderRequest(
+            symbol="AAPL",
+            side=OrderSide.SELL,
+            order_type=OrderType.MARKET,
+            quantity=Decimal("50"),
+            timestamp=now,
+        )
+
+        assert constraint.classify_risk(order, portfolio) is True
+
+    def test_sell_increasing_short_is_risk_increasing(self) -> None:
+        """Selling more when already short increases risk."""
+        from liq.risk.constraints import MaxPositionConstraint
+
+        now = datetime.now(UTC)
+        constraint = MaxPositionConstraint()
+        portfolio = PortfolioState(
+            cash=Decimal("100000"),
+            positions={
+                "AAPL": Position(
+                    symbol="AAPL",
+                    quantity=Decimal("-50"),  # Already short
+                    average_price=Decimal("100"),
+                    realized_pnl=Decimal("0"),
+                    timestamp=now,
+                )
+            },
+            timestamp=now,
+        )
+        order = OrderRequest(
+            symbol="AAPL",
+            side=OrderSide.SELL,
+            order_type=OrderType.MARKET,
+            quantity=Decimal("50"),
+            timestamp=now,
+        )
+
+        assert constraint.classify_risk(order, portfolio) is True
+
+
+class TestMaxPositionsConstraintClassifyRisk:
+    """Tests for MaxPositionsConstraint classify_risk method."""
+
+    def test_buy_no_position_is_risk_increasing(self) -> None:
+        """Buying with no existing position increases risk."""
+        from liq.risk.constraints import MaxPositionsConstraint
+
+        now = datetime.now(UTC)
+        constraint = MaxPositionsConstraint()
+        portfolio = PortfolioState(
+            cash=Decimal("100000"),
+            positions={},
+            timestamp=now,
+        )
+        order = OrderRequest(
+            symbol="AAPL",
+            side=OrderSide.BUY,
+            order_type=OrderType.MARKET,
+            quantity=Decimal("100"),
+            timestamp=now,
+        )
+
+        assert constraint.classify_risk(order, portfolio) is True
+
+    def test_sell_closing_long_is_risk_reducing(self) -> None:
+        """Selling to close a long position reduces risk."""
+        from liq.risk.constraints import MaxPositionsConstraint
+
+        now = datetime.now(UTC)
+        constraint = MaxPositionsConstraint()
+        portfolio = PortfolioState(
+            cash=Decimal("100000"),
+            positions={
+                "AAPL": Position(
+                    symbol="AAPL",
+                    quantity=Decimal("100"),
+                    average_price=Decimal("100"),
+                    realized_pnl=Decimal("0"),
+                    timestamp=now,
+                )
+            },
+            timestamp=now,
+        )
+        order = OrderRequest(
+            symbol="AAPL",
+            side=OrderSide.SELL,
+            order_type=OrderType.MARKET,
+            quantity=Decimal("50"),
+            timestamp=now,
+        )
+
+        assert constraint.classify_risk(order, portfolio) is False

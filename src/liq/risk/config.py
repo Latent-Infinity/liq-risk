@@ -6,16 +6,26 @@ current market conditions.
 
 from __future__ import annotations
 
+import logging
+import warnings
 from datetime import datetime
 from decimal import Decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
     field_validator,
+    model_validator,
 )
+
+from liq.risk.enums import HaltMode, PriceReference, SizingMode
+
+if TYPE_CHECKING:
+    from liq.risk.state import AssetMetadata, ExecutionState, PriceState, RiskFactors
+
+logger = logging.getLogger(__name__)
 
 
 class RiskConfig(BaseModel):
@@ -37,10 +47,15 @@ class RiskConfig(BaseModel):
         risk_per_trade: Fraction of equity to risk per trade.
         kelly_fraction: Fractional Kelly multiplier for safety.
         vol_target: Target portfolio volatility (optional).
+        sizing_mode: How to handle existing positions (INCREMENTAL, REBALANCE, REPLACE).
+        price_reference: Which price to use for sizing (MIDRANGE, CLOSE, VWAP).
         stop_loss_atr_mult: Stop-loss distance in ATR multiples.
         take_profit_atr_mult: Take-profit distance in ATR multiples (optional).
         max_drawdown_halt: Halt trading at this drawdown level.
         max_daily_loss_halt: Halt trading at this daily loss level (optional).
+        halt_mode: What "halt" means - which orders to block.
+        allow_shorts: Allow short selling (False for long-only strategies).
+        allow_leverage: Allow gross leverage > 1.0.
 
     Example:
         >>> config = RiskConfig()  # Use all defaults
@@ -115,6 +130,16 @@ class RiskConfig(BaseModel):
         description="Target portfolio volatility (annualized)",
     )
 
+    # Sizing behavior
+    sizing_mode: SizingMode = Field(
+        default=SizingMode.REBALANCE,
+        description="How to handle existing positions when sizing",
+    )
+    price_reference: PriceReference = Field(
+        default=PriceReference.MIDRANGE,
+        description="Which price to use for sizing calculations",
+    )
+
     # Risk controls
     stop_loss_atr_mult: float = Field(
         default=2.0,
@@ -138,6 +163,67 @@ class RiskConfig(BaseModel):
         le=1.0,
         description="Halt trading at this daily loss level",
     )
+    halt_mode: HaltMode = Field(
+        default=HaltMode.HALT_BUYS_ONLY,
+        description="What 'halt' means - which orders to block",
+    )
+
+    # Trading permissions
+    allow_shorts: bool = Field(
+        default=True,
+        description="Allow short selling (False = long-only strategy)",
+    )
+    allow_leverage: bool = Field(
+        default=False,
+        description="Allow gross leverage > 1.0",
+    )
+
+    # Trading costs (for cost-aware sizing)
+    default_borrow_rate: float = Field(
+        default=0.0,
+        ge=0.0,
+        description="Default annualized borrow rate for shorts (0.02 = 2%)",
+    )
+    default_slippage_pct: float = Field(
+        default=0.0,
+        ge=0.0,
+        description="Default slippage estimate as fraction (0.001 = 0.1%)",
+    )
+    default_commission_pct: float = Field(
+        default=0.0,
+        ge=0.0,
+        description="Default commission rate as fraction (0.001 = 0.1%)",
+    )
+
+    @model_validator(mode="after")
+    def validate_leverage_consistency(self) -> RiskConfig:
+        """Validate that leverage settings are consistent."""
+        # Net leverage should not exceed gross leverage
+        if self.max_net_leverage > self.max_gross_leverage:
+            raise ValueError(
+                f"max_net_leverage ({self.max_net_leverage}) cannot exceed "
+                f"max_gross_leverage ({self.max_gross_leverage})"
+            )
+
+        # Warn if max_position_pct * max_positions > max_gross_leverage
+        max_theoretical = self.max_position_pct * self.max_positions
+        if max_theoretical > self.max_gross_leverage:
+            warnings.warn(
+                f"max_position_pct ({self.max_position_pct}) * max_positions "
+                f"({self.max_positions}) = {max_theoretical:.2f} exceeds "
+                f"max_gross_leverage ({self.max_gross_leverage}). "
+                f"Consider adjusting limits.",
+                UserWarning,
+                stacklevel=2,
+            )
+            logger.warning(
+                "Config warning: max_position_pct * max_positions = %.2f "
+                "exceeds max_gross_leverage = %.2f",
+                max_theoretical,
+                self.max_gross_leverage,
+            )
+
+        return self
 
 
 class MarketState(BaseModel):
@@ -152,6 +238,7 @@ class MarketState(BaseModel):
         liquidity: Average daily volume per symbol.
         sector_map: Symbol to sector mapping (optional).
         correlations: Pairwise correlation matrix (optional).
+        borrow_rates: Per-symbol annualized borrow rates (optional).
         regime: Market regime label (optional).
         timestamp: State snapshot time (UTC, timezone-aware).
 
@@ -184,6 +271,10 @@ class MarketState(BaseModel):
     correlations: Any | None = Field(
         default=None,
         description="Pairwise correlation matrix (polars.DataFrame)",
+    )
+    borrow_rates: dict[str, Decimal] | None = Field(
+        default=None,
+        description="Per-symbol annualized borrow rates for shorts",
     )
     regime: str | None = Field(
         default=None,
