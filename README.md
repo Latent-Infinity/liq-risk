@@ -7,13 +7,13 @@ Position sizing and risk management for the LIQ Stack.
 ## Installation
 
 ```bash
-pip install liq-risk
+uv pip install liq-risk
 ```
 
 For development:
 
 ```bash
-pip install -e ".[dev]"
+uv pip install -e ".[dev]"
 ```
 
 ## Quick Start

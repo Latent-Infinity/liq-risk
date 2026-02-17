@@ -6,7 +6,7 @@ organized into logical layers.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
@@ -39,7 +39,7 @@ class PriceState:
         >>> price = state.get_price("AAPL", PriceReference.MIDRANGE)
     """
 
-    current_bars: dict[str, "Bar"]
+    current_bars: dict[str, Bar]
     timestamp: datetime
 
     def get_price(self, symbol: str, ref: PriceReference) -> Decimal | None:
@@ -147,7 +147,7 @@ class ExecutionState:
         >>> reserved = state.reserved_by_symbol
     """
 
-    open_orders: list["OrderRequest"]
+    open_orders: list[OrderRequest]
     reserved_capital: Decimal
 
     @property

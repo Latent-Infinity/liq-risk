@@ -3,11 +3,10 @@
 Tests PriceState, RiskFactors, AssetMetadata, and ExecutionState.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
-
 from liq.core import OrderRequest, OrderSide, OrderType
 from liq.core.bar import Bar
 
@@ -21,7 +20,7 @@ class TestPriceState:
         """Test basic PriceState creation."""
         from liq.risk.state import PriceState
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         bar = Bar(
             symbol="AAPL",
             timestamp=now,
@@ -45,7 +44,7 @@ class TestPriceState:
         """Test get_price with MIDRANGE reference."""
         from liq.risk.state import PriceState
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         bar = Bar(
             symbol="AAPL",
             timestamp=now,
@@ -66,7 +65,7 @@ class TestPriceState:
         """Test get_price with CLOSE reference."""
         from liq.risk.state import PriceState
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         bar = Bar(
             symbol="AAPL",
             timestamp=now,
@@ -86,7 +85,7 @@ class TestPriceState:
         """Test get_price with VWAP falls back to close."""
         from liq.risk.state import PriceState
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         bar = Bar(
             symbol="AAPL",
             timestamp=now,
@@ -107,7 +106,7 @@ class TestPriceState:
         """Test get_price returns None for missing symbol."""
         from liq.risk.state import PriceState
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         state = PriceState(current_bars={}, timestamp=now)
 
         price = state.get_price("AAPL", PriceReference.CLOSE)
@@ -117,11 +116,11 @@ class TestPriceState:
         """Test that PriceState is immutable."""
         from liq.risk.state import PriceState
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         state = PriceState(current_bars={}, timestamp=now)
 
         with pytest.raises(AttributeError):
-            state.timestamp = datetime.now(timezone.utc)  # type: ignore
+            state.timestamp = datetime.now(UTC)  # type: ignore
 
 
 class TestRiskFactors:
@@ -254,7 +253,7 @@ class TestExecutionState:
         """Test ExecutionState with open orders."""
         from liq.risk.state import ExecutionState
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         order = OrderRequest(
             symbol="AAPL",
             side=OrderSide.BUY,
@@ -285,7 +284,7 @@ class TestExecutionState:
         """Test reserved_by_symbol with one order."""
         from liq.risk.state import ExecutionState
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         order = OrderRequest(
             symbol="AAPL",
             side=OrderSide.BUY,
@@ -308,7 +307,7 @@ class TestExecutionState:
         """Test reserved_by_symbol with multiple orders."""
         from liq.risk.state import ExecutionState
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         order1 = OrderRequest(
             symbol="AAPL",
             side=OrderSide.BUY,
@@ -347,7 +346,7 @@ class TestExecutionState:
         """Test that sell orders don't reserve capital."""
         from liq.risk.state import ExecutionState
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         buy_order = OrderRequest(
             symbol="AAPL",
             side=OrderSide.BUY,

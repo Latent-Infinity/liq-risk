@@ -23,8 +23,13 @@ dev = [
     "pytest-cov>=6.0",
     "hypothesis>=6.120",
     "ruff>=0.14",
-    "mypy>=1.13",
+    "ty>=0.0.1",
 ]
+
+[tool.uv]
+[tool.uv.sources]
+liq-core = { path = "../liq-core", editable = true }
+liq-signals = { path = "../liq-signals", editable = true }
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/liq"]
@@ -40,13 +45,15 @@ ignore = ["E501"]
 [tool.ruff.format]
 quote-style = "double"
 
-[tool.mypy]
-python_version = "3.11"
-strict = true
-ignore_missing_imports = true
-mypy_path = "src"
-namespace_packages = true
-explicit_package_bases = true
+
+[tool.ty.environment]
+extra-paths = [
+    "./src",
+    "../liq-core/src",
+    "../liq-signals/src",
+]
+
+[tool.ty.rules]
 
 [tool.pytest.ini_options]
 addopts = "--cov=liq.risk --cov-report=term-missing --cov-fail-under=90"

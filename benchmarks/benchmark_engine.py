@@ -149,15 +149,23 @@ def benchmark_constraint_chain(n_orders: int = 1000, iterations: int = 100) -> f
     # Warmup
     result = orders
     for c in constraints:
-        result = c.apply(result, portfolio, market_state, config)
+        output = c.apply(result, portfolio, market_state, config)
+        if isinstance(output, list):
+            result = output
+        else:
+            result = output.orders
 
     # Benchmark
     times = []
     for _ in range(iterations):
         start = time.perf_counter()
-        result = orders
-        for c in constraints:
-            result = c.apply(result, portfolio, market_state, config)
+    result = orders
+    for c in constraints:
+        output = c.apply(result, portfolio, market_state, config)
+        if isinstance(output, list):
+            result = output
+        else:
+            result = output.orders
         elapsed = time.perf_counter() - start
         times.append(elapsed * 1000)
 

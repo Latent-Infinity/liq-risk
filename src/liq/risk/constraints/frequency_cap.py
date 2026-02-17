@@ -7,8 +7,8 @@ Configurable as N trades per Y timeframe (minute, hour, day, week, etc.).
 from __future__ import annotations
 
 from collections import deque
-from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from dataclasses import dataclass
+from datetime import datetime, timedelta
 from decimal import Decimal
 from enum import Enum
 from typing import TYPE_CHECKING

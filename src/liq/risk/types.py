@@ -148,9 +148,9 @@ class TargetPosition:
     def to_order_request(
         self,
         timestamp: datetime,
-        order_type: "OrderType | None" = None,
+        order_type: OrderType | None = None,
         rounding: RoundingPolicy | None = None,
-    ) -> "OrderRequest | None":
+    ) -> OrderRequest | None:
         """Convert to OrderRequest for execution.
 
         Args:
@@ -250,6 +250,6 @@ class ConstraintResult:
         ...     logger.info(f"Rejected {rejection.order.symbol}: {rejection.reason}")
     """
 
-    orders: list["OrderRequest"]
+    orders: list[OrderRequest]
     rejected: list[RejectedOrder]
     warnings: list[str] = field(default_factory=list)

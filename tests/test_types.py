@@ -3,11 +3,10 @@
 Tests TargetPosition, RejectedOrder, ConstraintResult, and RoundingPolicy.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
-
 from liq.core import OrderRequest, OrderSide, OrderType
 
 
@@ -227,7 +226,7 @@ class TestTargetPosition:
             signal_strength=0.8,
         )
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         order = tp.to_order_request(timestamp=now)
 
         assert order is not None
@@ -249,7 +248,7 @@ class TestTargetPosition:
             direction="long",
         )
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         order = tp.to_order_request(timestamp=now)
 
         assert order is not None
@@ -268,7 +267,7 @@ class TestTargetPosition:
             direction="long",
         )
 
-        order = tp.to_order_request(timestamp=datetime.now(timezone.utc))
+        order = tp.to_order_request(timestamp=datetime.now(UTC))
         assert order is None
 
     def test_to_order_request_with_limit_order(self):
@@ -282,7 +281,7 @@ class TestTargetPosition:
             direction="long",
         )
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         order = tp.to_order_request(timestamp=now, order_type=OrderType.MARKET)
 
         assert order is not None
@@ -299,7 +298,7 @@ class TestTargetPosition:
             direction="short",
         )
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         order = tp.to_order_request(timestamp=now)
 
         assert order is not None
@@ -317,7 +316,7 @@ class TestTargetPosition:
             direction="flat",
         )
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         order = tp.to_order_request(timestamp=now)
 
         assert order is not None
@@ -336,7 +335,7 @@ class TestTargetPosition:
         )
 
         rounding = RoundingPolicy(lot_size=Decimal("10"))
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         order = tp.to_order_request(timestamp=now, rounding=rounding)
 
         assert order is not None
@@ -356,7 +355,7 @@ class TestTargetPosition:
 
         rounding = RoundingPolicy(lot_size=Decimal("10"))
         order = tp.to_order_request(
-            timestamp=datetime.now(timezone.utc), rounding=rounding
+            timestamp=datetime.now(UTC), rounding=rounding
         )
 
         # Delta is 5, rounds to 0 with lot size 10
@@ -402,7 +401,7 @@ class TestRejectedOrder:
             side=OrderSide.BUY,
             order_type=OrderType.MARKET,
             quantity=Decimal("100"),
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
         )
 
         rejected = RejectedOrder(
@@ -425,7 +424,7 @@ class TestRejectedOrder:
             side=OrderSide.BUY,
             order_type=OrderType.MARKET,
             quantity=Decimal("50"),  # Reduced quantity
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
         )
 
         rejected = RejectedOrder(
@@ -465,7 +464,7 @@ class TestRejectedOrder:
             side=OrderSide.BUY,
             order_type=OrderType.MARKET,
             quantity=Decimal("100"),
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
         )
 
         rejected = RejectedOrder(
@@ -490,7 +489,7 @@ class TestConstraintResult:
             side=OrderSide.BUY,
             order_type=OrderType.MARKET,
             quantity=Decimal("100"),
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
         )
 
         result = ConstraintResult(orders=[order], rejected=[])
@@ -508,14 +507,14 @@ class TestConstraintResult:
             side=OrderSide.BUY,
             order_type=OrderType.MARKET,
             quantity=Decimal("100"),
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
         )
         order2 = OrderRequest(
             symbol="GOOGL",
             side=OrderSide.BUY,
             order_type=OrderType.MARKET,
             quantity=Decimal("50"),
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
         )
 
         rejected = RejectedOrder(

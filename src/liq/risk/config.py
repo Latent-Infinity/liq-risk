@@ -23,7 +23,7 @@ from pydantic import (
 from liq.risk.enums import HaltMode, PriceReference, SizingMode
 
 if TYPE_CHECKING:
-    from liq.risk.state import AssetMetadata, ExecutionState, PriceState, RiskFactors
+    pass
 
 logger = logging.getLogger(__name__)
 

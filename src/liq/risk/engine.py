@@ -7,7 +7,7 @@ while applying risk management rules.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
@@ -220,7 +220,7 @@ class RiskEngine:
         # Use market state timestamp if available, otherwise UTC now
         timestamp = getattr(market_state, "timestamp", None)
         if timestamp is None:
-            timestamp = datetime.now(timezone.utc)
+            timestamp = datetime.now(UTC)
 
         orders: list[OrderRequest] = []
         for item in sizer_output:

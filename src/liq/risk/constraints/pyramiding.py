@@ -6,7 +6,7 @@ Prevents over-concentration by limiting how many times you can add to a position
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
