@@ -337,8 +337,8 @@ class TestRiskConfigTradingCosts:
         from liq.risk import RiskConfig
 
         config = RiskConfig(
-            default_borrow_rate=0.02,      # 2% annual
-            default_slippage_pct=0.001,    # 0.1% slippage
+            default_borrow_rate=0.02,  # 2% annual
+            default_slippage_pct=0.001,  # 0.1% slippage
             default_commission_pct=0.0005,  # 0.05% commission
         )
 
@@ -421,7 +421,6 @@ class TestRiskConfigLeverageValidation:
             )
             # Should have no warnings related to leverage
             leverage_warnings = [
-                x for x in w
-                if "max_position_pct" in str(x.message) and "exceeds" in str(x.message)
+                x for x in w if "max_position_pct" in str(x.message) and "exceeds" in str(x.message)
             ]
             assert len(leverage_warnings) == 0

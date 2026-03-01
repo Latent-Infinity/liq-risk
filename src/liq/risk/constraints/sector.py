@@ -164,9 +164,7 @@ class SectorExposureConstraint:
             else:
                 # Scale down to fit
                 scaled_value = remaining_capacity
-                scaled_quantity = (scaled_value / price).to_integral_value(
-                    rounding=ROUND_DOWN
-                )
+                scaled_quantity = (scaled_value / price).to_integral_value(rounding=ROUND_DOWN)
 
                 if scaled_quantity >= 1:
                     new_order = OrderRequest(
@@ -179,16 +177,14 @@ class SectorExposureConstraint:
                         stop_price=order.stop_price,
                         time_in_force=order.time_in_force,
                         timestamp=order.timestamp,
-                        strategy_id=order.strategy_id,
+                        policy_id=order.policy_id,
                         confidence=order.confidence,
                         tags=order.tags,
                         metadata=order.metadata,
                     )
                     result.append(new_order)
                     # Update tracking with actual value
-                    sector_exposure[sector] = current_exposure + (
-                        scaled_quantity * price
-                    )
+                    sector_exposure[sector] = current_exposure + (scaled_quantity * price)
                     rejected.append(
                         RejectedOrder(
                             order=order,

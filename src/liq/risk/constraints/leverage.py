@@ -137,7 +137,7 @@ class GrossLeverageConstraint:
                                 stop_price=order.stop_price,
                                 time_in_force=order.time_in_force,
                                 timestamp=order.timestamp,
-                                strategy_id=order.strategy_id,
+                                policy_id=order.policy_id,
                                 confidence=order.confidence,
                                 tags=order.tags,
                                 metadata=order.metadata,
@@ -155,7 +155,7 @@ class GrossLeverageConstraint:
                                 stop_price=order.stop_price,
                                 time_in_force=order.time_in_force,
                                 timestamp=order.timestamp,
-                                strategy_id=order.strategy_id,
+                                policy_id=order.policy_id,
                                 confidence=order.confidence,
                                 tags=order.tags,
                                 metadata=order.metadata,
@@ -168,9 +168,7 @@ class GrossLeverageConstraint:
                             exposure_reducing_orders.append(order)
                     else:
                         # No short to cover, all increases exposure
-                        exposure_increasing_orders.append(
-                            (order, order.quantity * price)
-                        )
+                        exposure_increasing_orders.append((order, order.quantity * price))
                 else:
                     # No short position - buy increases exposure
                     exposure_increasing_orders.append((order, order.quantity * price))
@@ -194,7 +192,7 @@ class GrossLeverageConstraint:
                                 stop_price=order.stop_price,
                                 time_in_force=order.time_in_force,
                                 timestamp=order.timestamp,
-                                strategy_id=order.strategy_id,
+                                policy_id=order.policy_id,
                                 confidence=order.confidence,
                                 tags=order.tags,
                                 metadata=order.metadata,
@@ -212,7 +210,7 @@ class GrossLeverageConstraint:
                                 stop_price=order.stop_price,
                                 time_in_force=order.time_in_force,
                                 timestamp=order.timestamp,
-                                strategy_id=order.strategy_id,
+                                policy_id=order.policy_id,
                                 confidence=order.confidence,
                                 tags=order.tags,
                                 metadata=order.metadata,
@@ -225,9 +223,7 @@ class GrossLeverageConstraint:
                             exposure_reducing_orders.append(order)
                     else:
                         # No long to close, all goes short (increases exposure)
-                        exposure_increasing_orders.append(
-                            (order, order.quantity * price)
-                        )
+                        exposure_increasing_orders.append((order, order.quantity * price))
                 else:
                     # No long position - sell increases short exposure
                     exposure_increasing_orders.append((order, order.quantity * price))
@@ -272,9 +268,7 @@ class GrossLeverageConstraint:
 
             price = bar.close
             scaled_value = order_value * scale_factor
-            scaled_quantity = (scaled_value / price).to_integral_value(
-                rounding=ROUND_DOWN
-            )
+            scaled_quantity = (scaled_value / price).to_integral_value(rounding=ROUND_DOWN)
 
             if scaled_quantity >= 1:
                 new_order = OrderRequest(
@@ -287,7 +281,7 @@ class GrossLeverageConstraint:
                     stop_price=order.stop_price,
                     time_in_force=order.time_in_force,
                     timestamp=order.timestamp,
-                    strategy_id=order.strategy_id,
+                    policy_id=order.policy_id,
                     confidence=order.confidence,
                     tags=order.tags,
                     metadata=order.metadata,

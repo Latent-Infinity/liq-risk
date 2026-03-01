@@ -605,15 +605,17 @@ class TestFrequencyCapConstraintMultipleCaps:
             for _ in range(3)
         ]
         # Also some trades from earlier in the hour
-        history.extend([
-            TradeRecord(
-                symbol="AAPL",
-                timestamp=now - timedelta(minutes=30),
-                side=OrderSide.BUY,
-                quantity=Decimal("10"),
-            )
-            for _ in range(7)
-        ])
+        history.extend(
+            [
+                TradeRecord(
+                    symbol="AAPL",
+                    timestamp=now - timedelta(minutes=30),
+                    side=OrderSide.BUY,
+                    quantity=Decimal("10"),
+                )
+                for _ in range(7)
+            ]
+        )
 
         constraint = FrequencyCapConstraint(
             caps=[
@@ -820,9 +822,7 @@ class TestFrequencyCapConstraintAllTimeframes:
             (Timeframe.MONTH, timedelta(days=30)),
         ],
     )
-    def test_timeframe_durations(
-        self, timeframe: Timeframe, expected_duration: timedelta
-    ) -> None:
+    def test_timeframe_durations(self, timeframe: Timeframe, expected_duration: timedelta) -> None:
         """All timeframes should have correct durations."""
         assert timeframe.to_timedelta() == expected_duration
 

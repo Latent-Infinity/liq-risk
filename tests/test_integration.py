@@ -304,9 +304,7 @@ class TestCustomSizerIntegration:
             liquidity={"AAPL": Decimal("50000000")},
             timestamp=now,
         )
-        signals = [
-            Signal(symbol="AAPL", timestamp=now, direction="long", strength=1.0)
-        ]
+        signals = [Signal(symbol="AAPL", timestamp=now, direction="long", strength=1.0)]
 
         result = engine.process_signals(signals, portfolio, market, config)
 
@@ -338,9 +336,7 @@ class TestCustomSizerIntegration:
             liquidity={"AAPL": Decimal("50000000")},
             timestamp=now,
         )
-        signals = [
-            Signal(symbol="AAPL", timestamp=now, direction="long", strength=1.0)
-        ]
+        signals = [Signal(symbol="AAPL", timestamp=now, direction="long", strength=1.0)]
 
         result = engine.process_signals(signals, portfolio, market, config)
 
@@ -379,9 +375,7 @@ class TestCustomConstraintIntegration:
             liquidity={"AAPL": Decimal("50000000")},
             timestamp=now,
         )
-        signals = [
-            Signal(symbol="AAPL", timestamp=now, direction="long", strength=1.0)
-        ]
+        signals = [Signal(symbol="AAPL", timestamp=now, direction="long", strength=1.0)]
 
         result = engine.process_signals(signals, portfolio, market, config)
 
@@ -418,9 +412,7 @@ class TestStopLossIntegration:
             liquidity={"AAPL": Decimal("50000000")},
             timestamp=now,
         )
-        signals = [
-            Signal(symbol="AAPL", timestamp=now, direction="long", strength=1.0)
-        ]
+        signals = [Signal(symbol="AAPL", timestamp=now, direction="long", strength=1.0)]
 
         result = engine.process_signals(signals, portfolio, market, config)
 
@@ -453,9 +445,7 @@ class TestStopLossIntegration:
             liquidity={"AAPL": Decimal("50000000")},
             timestamp=now,
         )
-        signals = [
-            Signal(symbol="AAPL", timestamp=now, direction="short", strength=1.0)
-        ]
+        signals = [Signal(symbol="AAPL", timestamp=now, direction="short", strength=1.0)]
 
         result = engine.process_signals(signals, portfolio, market, config)
 
@@ -492,12 +482,13 @@ class TestDrawdownHaltIntegration:
             liquidity={"AAPL": Decimal("50000000")},
             timestamp=now,
         )
-        signals = [
-            Signal(symbol="AAPL", timestamp=now, direction="long", strength=1.0)
-        ]
+        signals = [Signal(symbol="AAPL", timestamp=now, direction="long", strength=1.0)]
 
         result = engine.process_signals(
-            signals, portfolio, market, config,
+            signals,
+            portfolio,
+            market,
+            config,
             high_water_mark=Decimal("100000"),
         )
 
@@ -538,12 +529,13 @@ class TestDrawdownHaltIntegration:
             liquidity={"AAPL": Decimal("50000000")},
             timestamp=now,
         )
-        signals = [
-            Signal(symbol="AAPL", timestamp=now, direction="short", strength=1.0)
-        ]
+        signals = [Signal(symbol="AAPL", timestamp=now, direction="short", strength=1.0)]
 
         result = engine.process_signals(
-            signals, portfolio, market, config,
+            signals,
+            portfolio,
+            market,
+            config,
             high_water_mark=Decimal("100000"),
         )
 
@@ -684,9 +676,7 @@ class TestBuyingPowerIntegration:
             liquidity={"AAPL": Decimal("50000000")},
             timestamp=now,
         )
-        signals = [
-            Signal(symbol="AAPL", timestamp=now, direction="long", strength=1.0)
-        ]
+        signals = [Signal(symbol="AAPL", timestamp=now, direction="long", strength=1.0)]
 
         result = engine.process_signals(signals, portfolio, market, config)
 
@@ -775,9 +765,7 @@ class TestNetLeverageIntegration:
             liquidity={"AAPL": Decimal("50000000")},
             timestamp=now,
         )
-        signals = [
-            Signal(symbol="AAPL", timestamp=now, direction="long", strength=1.0)
-        ]
+        signals = [Signal(symbol="AAPL", timestamp=now, direction="long", strength=1.0)]
 
         result = engine.process_signals(signals, portfolio, market, config)
 
@@ -816,9 +804,7 @@ class TestShortSellingIntegration:
             liquidity={"AAPL": Decimal("50000000")},
             timestamp=now,
         )
-        signals = [
-            Signal(symbol="AAPL", timestamp=now, direction="short", strength=1.0)
-        ]
+        signals = [Signal(symbol="AAPL", timestamp=now, direction="short", strength=1.0)]
 
         result = engine.process_signals(signals, portfolio, market, config)
 
@@ -858,9 +844,7 @@ class TestShortSellingIntegration:
             liquidity={"AAPL": Decimal("50000000")},
             timestamp=now,
         )
-        signals = [
-            Signal(symbol="AAPL", timestamp=now, direction="short", strength=1.0)
-        ]
+        signals = [Signal(symbol="AAPL", timestamp=now, direction="short", strength=1.0)]
 
         result = engine.process_signals(signals, portfolio, market, config)
 
@@ -899,9 +883,7 @@ class TestKillSwitchIntegration:
             liquidity={"AAPL": Decimal("50000000")},
             timestamp=now,
         )
-        signals = [
-            Signal(symbol="AAPL", timestamp=now, direction="long", strength=1.0)
-        ]
+        signals = [Signal(symbol="AAPL", timestamp=now, direction="long", strength=1.0)]
 
         result = engine.process_signals(signals, portfolio, market, config)
 
@@ -934,12 +916,13 @@ class TestKillSwitchIntegration:
             liquidity={"AAPL": Decimal("50000000")},
             timestamp=now,
         )
-        signals = [
-            Signal(symbol="AAPL", timestamp=now, direction="long", strength=1.0)
-        ]
+        signals = [Signal(symbol="AAPL", timestamp=now, direction="long", strength=1.0)]
 
         result = engine.process_signals(
-            signals, portfolio, market, config,
+            signals,
+            portfolio,
+            market,
+            config,
             day_start_equity=Decimal("100000"),
         )
 
@@ -972,12 +955,13 @@ class TestKillSwitchIntegration:
             liquidity={"AAPL": Decimal("50000000")},
             timestamp=now,
         )
-        signals = [
-            Signal(symbol="AAPL", timestamp=now, direction="long", strength=1.0)
-        ]
+        signals = [Signal(symbol="AAPL", timestamp=now, direction="long", strength=1.0)]
 
         result = engine.process_signals(
-            signals, portfolio, market, config,
+            signals,
+            portfolio,
+            market,
+            config,
             high_water_mark=Decimal("100000"),
         )
 
@@ -1015,9 +999,7 @@ class TestAuditScenarios:
             timestamp=now,
         )
         # Signal would normally size to more than $5000
-        signals = [
-            Signal(symbol="TEST", timestamp=now, direction="long", strength=1.0)
-        ]
+        signals = [Signal(symbol="TEST", timestamp=now, direction="long", strength=1.0)]
 
         result = engine.process_signals(signals, portfolio, market, config)
 
@@ -1061,9 +1043,7 @@ class TestAuditScenarios:
             liquidity={"NEW": Decimal("50000000")},
             timestamp=now,
         )
-        signals = [
-            Signal(symbol="NEW", timestamp=now, direction="long", strength=1.0)
-        ]
+        signals = [Signal(symbol="NEW", timestamp=now, direction="long", strength=1.0)]
 
         result = engine.process_signals(signals, portfolio, market, config)
 
@@ -1095,9 +1075,7 @@ class TestAuditScenarios:
             liquidity={"TEST": Decimal("50000000")},
             timestamp=now,
         )
-        signals = [
-            Signal(symbol="TEST", timestamp=now, direction="long", strength=1.0)
-        ]
+        signals = [Signal(symbol="TEST", timestamp=now, direction="long", strength=1.0)]
 
         result = engine.process_signals(signals, portfolio, market, config)
 

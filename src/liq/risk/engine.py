@@ -304,7 +304,10 @@ class RiskEngine:
                 high_water_mark,
                 current_equity,
             )
-            return True, f"Drawdown of {drawdown:.1%} exceeds limit of {risk_config.max_drawdown_halt:.1%}"
+            return (
+                True,
+                f"Drawdown of {drawdown:.1%} exceeds limit of {risk_config.max_drawdown_halt:.1%}",
+            )
 
         return False, None
 
@@ -365,7 +368,10 @@ class RiskEngine:
                 float(daily_loss * 100),
                 risk_config.max_daily_loss_halt * 100,
             )
-            return True, f"Daily loss of {daily_loss:.1%} exceeds limit of {risk_config.max_daily_loss_halt:.1%}"
+            return (
+                True,
+                f"Daily loss of {daily_loss:.1%} exceeds limit of {risk_config.max_daily_loss_halt:.1%}",
+            )
 
         return False, None
 

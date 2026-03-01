@@ -601,10 +601,20 @@ class TestVolatilitySizerPropertyBased:
     """Property-based tests using Hypothesis."""
 
     @given(
-        equity=st.decimals(min_value=1000, max_value=10000000, places=2, allow_nan=False, allow_infinity=False),
+        equity=st.decimals(
+            min_value=1000, max_value=10000000, places=2, allow_nan=False, allow_infinity=False
+        ),
         risk_pct=st.floats(min_value=0.001, max_value=0.10),
-        price=st.decimals(min_value=1, max_value=10000, places=2, allow_nan=False, allow_infinity=False),
-        volatility=st.decimals(min_value=Decimal("0.01"), max_value=100, places=2, allow_nan=False, allow_infinity=False),
+        price=st.decimals(
+            min_value=1, max_value=10000, places=2, allow_nan=False, allow_infinity=False
+        ),
+        volatility=st.decimals(
+            min_value=Decimal("0.01"),
+            max_value=100,
+            places=2,
+            allow_nan=False,
+            allow_infinity=False,
+        ),
     )
     @settings(max_examples=100)
     def test_quantity_always_positive_or_zero(
@@ -649,8 +659,12 @@ class TestVolatilitySizerPropertyBased:
             assert targets[0].target_quantity > 0
 
     @given(
-        vol1=st.decimals(min_value=Decimal("0.1"), max_value=50, places=2, allow_nan=False, allow_infinity=False),
-        vol2=st.decimals(min_value=Decimal("0.1"), max_value=50, places=2, allow_nan=False, allow_infinity=False),
+        vol1=st.decimals(
+            min_value=Decimal("0.1"), max_value=50, places=2, allow_nan=False, allow_infinity=False
+        ),
+        vol2=st.decimals(
+            min_value=Decimal("0.1"), max_value=50, places=2, allow_nan=False, allow_infinity=False
+        ),
     )
     @settings(max_examples=50)
     def test_higher_vol_never_larger_position(

@@ -743,9 +743,7 @@ class TestStructuredConstraintProtocol:
                 total_qty = sum(o.quantity for o in orders)
                 if total_qty > Decimal("500"):
                     warnings.append(f"High total quantity: {total_qty}")
-                return ConstraintResult(
-                    orders=orders, rejected=[], warnings=warnings
-                )
+                return ConstraintResult(orders=orders, rejected=[], warnings=warnings)
 
             def classify_risk(
                 self,

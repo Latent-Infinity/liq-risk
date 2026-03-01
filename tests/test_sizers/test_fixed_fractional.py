@@ -339,7 +339,9 @@ class TestFixedFractionalSizerFormula:
         )
 
         signals_cheap = [Signal(symbol="CHEAP", timestamp=now, direction="long", strength=1.0)]
-        signals_expensive = [Signal(symbol="EXPENSIVE", timestamp=now, direction="long", strength=1.0)]
+        signals_expensive = [
+            Signal(symbol="EXPENSIVE", timestamp=now, direction="long", strength=1.0)
+        ]
 
         targets_cheap = sizer.size_positions(signals_cheap, portfolio, market, config)
         targets_expensive = sizer.size_positions(signals_expensive, portfolio, market, config)
@@ -547,9 +549,13 @@ class TestFixedFractionalSizerPropertyBased:
     """Property-based tests using Hypothesis."""
 
     @given(
-        equity=st.decimals(min_value=1000, max_value=10000000, places=2, allow_nan=False, allow_infinity=False),
+        equity=st.decimals(
+            min_value=1000, max_value=10000000, places=2, allow_nan=False, allow_infinity=False
+        ),
         fraction=st.floats(min_value=0.001, max_value=1.0),
-        price=st.decimals(min_value=1, max_value=10000, places=2, allow_nan=False, allow_infinity=False),
+        price=st.decimals(
+            min_value=1, max_value=10000, places=2, allow_nan=False, allow_infinity=False
+        ),
     )
     @settings(max_examples=100)
     def test_quantity_always_positive_or_zero(

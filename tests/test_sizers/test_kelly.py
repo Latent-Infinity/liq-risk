@@ -223,9 +223,7 @@ class TestKellySizerFormula:
             liquidity={"AAPL": Decimal("50000000")},
             timestamp=now,
         )
-        signals = [
-            Signal(symbol="AAPL", timestamp=now, direction="long", strength=1.0)
-        ]
+        signals = [Signal(symbol="AAPL", timestamp=now, direction="long", strength=1.0)]
 
         targets_quarter = sizer.size_positions(signals, portfolio, market, quarter_kelly)
         targets_half = sizer.size_positions(signals, portfolio, market, half_kelly)
@@ -261,12 +259,8 @@ class TestKellySizerFormula:
             timestamp=now,
         )
 
-        high_strength = [
-            Signal(symbol="AAPL", timestamp=now, direction="long", strength=1.0)
-        ]
-        low_strength = [
-            Signal(symbol="AAPL", timestamp=now, direction="long", strength=0.6)
-        ]
+        high_strength = [Signal(symbol="AAPL", timestamp=now, direction="long", strength=1.0)]
+        low_strength = [Signal(symbol="AAPL", timestamp=now, direction="long", strength=0.6)]
 
         targets_high = sizer.size_positions(high_strength, portfolio, market, config)
         targets_low = sizer.size_positions(low_strength, portfolio, market, config)
@@ -301,9 +295,7 @@ class TestKellySizerFormula:
             liquidity={"AAPL": Decimal("50000000")},
             timestamp=now,
         )
-        signals = [
-            Signal(symbol="AAPL", timestamp=now, direction="long", strength=0.5)
-        ]
+        signals = [Signal(symbol="AAPL", timestamp=now, direction="long", strength=0.5)]
 
         targets = sizer.size_positions(signals, portfolio, market, config)
 
@@ -337,9 +329,7 @@ class TestKellySizerFormula:
             liquidity={"AAPL": Decimal("50000000")},
             timestamp=now,
         )
-        signals = [
-            Signal(symbol="AAPL", timestamp=now, direction="long", strength=0.4)
-        ]
+        signals = [Signal(symbol="AAPL", timestamp=now, direction="long", strength=0.4)]
 
         targets = sizer.size_positions(signals, portfolio, market, config)
 
@@ -378,9 +368,7 @@ class TestKellySizerFormula:
             liquidity={"AAPL": Decimal("50000000")},
             timestamp=now,
         )
-        signals = [
-            Signal(symbol="AAPL", timestamp=now, direction="long", strength=0.75)
-        ]
+        signals = [Signal(symbol="AAPL", timestamp=now, direction="long", strength=0.75)]
 
         targets = sizer.size_positions(signals, portfolio, market, config)
 
@@ -412,9 +400,7 @@ class TestKellySizerEdgeCases:
             liquidity={},
             timestamp=now,
         )
-        signals = [
-            Signal(symbol="AAPL", timestamp=now, direction="long", strength=1.0)
-        ]
+        signals = [Signal(symbol="AAPL", timestamp=now, direction="long", strength=1.0)]
 
         targets = sizer.size_positions(signals, portfolio, market, config)
 
@@ -447,9 +433,7 @@ class TestKellySizerEdgeCases:
             liquidity={"AAPL": Decimal("50000000")},
             timestamp=now,
         )
-        signals = [
-            Signal(symbol="AAPL", timestamp=now, direction="long", strength=0.75)
-        ]
+        signals = [Signal(symbol="AAPL", timestamp=now, direction="long", strength=0.75)]
 
         targets = sizer.size_positions(signals, portfolio, market, config)
 
@@ -485,9 +469,7 @@ class TestKellySizerEdgeCases:
             liquidity={"AAPL": Decimal("50000000")},
             timestamp=now,
         )
-        signals = [
-            Signal(symbol="AAPL", timestamp=now, direction="long", strength=0.75)
-        ]
+        signals = [Signal(symbol="AAPL", timestamp=now, direction="long", strength=0.75)]
 
         targets = sizer.size_positions(signals, portfolio, market, config)
 
@@ -584,9 +566,7 @@ class TestKellySizerPropertyBased:
             liquidity={"AAPL": Decimal("50000000")},
             timestamp=now,
         )
-        signals = [
-            Signal(symbol="AAPL", timestamp=now, direction="long", strength=strength)
-        ]
+        signals = [Signal(symbol="AAPL", timestamp=now, direction="long", strength=strength)]
 
         targets = sizer.size_positions(signals, portfolio, market, config)
 
@@ -625,9 +605,7 @@ class TestKellySizerPropertyBased:
             liquidity={"AAPL": Decimal("50000000")},
             timestamp=now,
         )
-        signals = [
-            Signal(symbol="AAPL", timestamp=now, direction="long", strength=strength)
-        ]
+        signals = [Signal(symbol="AAPL", timestamp=now, direction="long", strength=strength)]
 
         targets = sizer.size_positions(signals, portfolio, market, config)
 

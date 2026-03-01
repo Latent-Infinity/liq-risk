@@ -577,7 +577,9 @@ class TestBuyingPowerConstraintPropertyBased:
     """Property-based tests for BuyingPowerConstraint."""
 
     @given(
-        cash=st.decimals(min_value=100, max_value=1000000, places=2, allow_nan=False, allow_infinity=False),
+        cash=st.decimals(
+            min_value=100, max_value=1000000, places=2, allow_nan=False, allow_infinity=False
+        ),
     )
     @settings(max_examples=50)
     def test_resulting_order_value_never_exceeds_cash(

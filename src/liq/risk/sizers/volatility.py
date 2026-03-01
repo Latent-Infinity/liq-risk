@@ -85,9 +85,7 @@ class VolatilitySizer:
         targets: list[TargetPosition] = []
         equity = portfolio_state.equity
         risk_pct = (
-            self.risk_per_trade
-            if self.risk_per_trade is not None
-            else risk_config.risk_per_trade
+            self.risk_per_trade if self.risk_per_trade is not None else risk_config.risk_per_trade
         )
 
         for signal in signals:

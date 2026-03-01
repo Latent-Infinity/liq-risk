@@ -81,9 +81,7 @@ class EqualWeightSizer:
             price = bar.close
 
             # Calculate quantity
-            quantity = (allocation_per_signal / price).to_integral_value(
-                rounding=ROUND_DOWN
-            )
+            quantity = (allocation_per_signal / price).to_integral_value(rounding=ROUND_DOWN)
 
             if quantity < 1:
                 continue

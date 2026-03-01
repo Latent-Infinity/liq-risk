@@ -194,15 +194,21 @@ class TestRiskParitySizerFormula:
         now = datetime.now(UTC)
 
         bar_a = Bar(
-            timestamp=now, symbol="SYM_A",
-            open=Decimal("100"), high=Decimal("105"),
-            low=Decimal("95"), close=Decimal("100"),
+            timestamp=now,
+            symbol="SYM_A",
+            open=Decimal("100"),
+            high=Decimal("105"),
+            low=Decimal("95"),
+            close=Decimal("100"),
             volume=Decimal("1000000"),
         )
         bar_b = Bar(
-            timestamp=now, symbol="SYM_B",
-            open=Decimal("100"), high=Decimal("105"),
-            low=Decimal("95"), close=Decimal("100"),
+            timestamp=now,
+            symbol="SYM_B",
+            open=Decimal("100"),
+            high=Decimal("105"),
+            low=Decimal("95"),
+            close=Decimal("100"),
             volume=Decimal("1000000"),
         )
 
@@ -240,15 +246,21 @@ class TestRiskParitySizerFormula:
 
         # Same price for both
         bar_low_vol = Bar(
-            timestamp=now, symbol="LOWVOL",
-            open=Decimal("100"), high=Decimal("105"),
-            low=Decimal("95"), close=Decimal("100"),
+            timestamp=now,
+            symbol="LOWVOL",
+            open=Decimal("100"),
+            high=Decimal("105"),
+            low=Decimal("95"),
+            close=Decimal("100"),
             volume=Decimal("1000000"),
         )
         bar_high_vol = Bar(
-            timestamp=now, symbol="HIGHVOL",
-            open=Decimal("100"), high=Decimal("105"),
-            low=Decimal("95"), close=Decimal("100"),
+            timestamp=now,
+            symbol="HIGHVOL",
+            open=Decimal("100"),
+            high=Decimal("105"),
+            low=Decimal("95"),
+            close=Decimal("100"),
             volume=Decimal("1000000"),
         )
 
@@ -287,21 +299,30 @@ class TestRiskParitySizerFormula:
         now = datetime.now(UTC)
 
         bar_a = Bar(
-            timestamp=now, symbol="SYM_A",
-            open=Decimal("50"), high=Decimal("52"),
-            low=Decimal("48"), close=Decimal("50"),
+            timestamp=now,
+            symbol="SYM_A",
+            open=Decimal("50"),
+            high=Decimal("52"),
+            low=Decimal("48"),
+            close=Decimal("50"),
             volume=Decimal("1000000"),
         )
         bar_b = Bar(
-            timestamp=now, symbol="SYM_B",
-            open=Decimal("100"), high=Decimal("105"),
-            low=Decimal("95"), close=Decimal("100"),
+            timestamp=now,
+            symbol="SYM_B",
+            open=Decimal("100"),
+            high=Decimal("105"),
+            low=Decimal("95"),
+            close=Decimal("100"),
             volume=Decimal("1000000"),
         )
         bar_c = Bar(
-            timestamp=now, symbol="SYM_C",
-            open=Decimal("200"), high=Decimal("210"),
-            low=Decimal("190"), close=Decimal("200"),
+            timestamp=now,
+            symbol="SYM_C",
+            open=Decimal("200"),
+            high=Decimal("210"),
+            low=Decimal("190"),
+            close=Decimal("200"),
             volume=Decimal("1000000"),
         )
 
@@ -313,7 +334,11 @@ class TestRiskParitySizerFormula:
         market = MarketState(
             current_bars={"SYM_A": bar_a, "SYM_B": bar_b, "SYM_C": bar_c},
             volatility={"SYM_A": Decimal("2"), "SYM_B": Decimal("4"), "SYM_C": Decimal("8")},
-            liquidity={"SYM_A": Decimal("1000000"), "SYM_B": Decimal("1000000"), "SYM_C": Decimal("1000000")},
+            liquidity={
+                "SYM_A": Decimal("1000000"),
+                "SYM_B": Decimal("1000000"),
+                "SYM_C": Decimal("1000000"),
+            },
             timestamp=now,
         )
         config = RiskConfig(risk_per_trade=0.02)  # 2% risk allocation
@@ -374,9 +399,12 @@ class TestRiskParitySizerEdgeCases:
         now = datetime.now(UTC)
 
         bar = Bar(
-            timestamp=now, symbol="AAPL",
-            open=Decimal("100"), high=Decimal("105"),
-            low=Decimal("95"), close=Decimal("100"),
+            timestamp=now,
+            symbol="AAPL",
+            open=Decimal("100"),
+            high=Decimal("105"),
+            low=Decimal("95"),
+            close=Decimal("100"),
             volume=Decimal("1000000"),
         )
 
@@ -406,9 +434,12 @@ class TestRiskParitySizerEdgeCases:
         now = datetime.now(UTC)
 
         bar = Bar(
-            timestamp=now, symbol="AAPL",
-            open=Decimal("100"), high=Decimal("105"),
-            low=Decimal("95"), close=Decimal("100"),
+            timestamp=now,
+            symbol="AAPL",
+            open=Decimal("100"),
+            high=Decimal("105"),
+            low=Decimal("95"),
+            close=Decimal("100"),
             volume=Decimal("1000000"),
         )
 
@@ -438,9 +469,12 @@ class TestRiskParitySizerEdgeCases:
         now = datetime.now(UTC)
 
         bar = Bar(
-            timestamp=now, symbol="AAPL",
-            open=Decimal("100"), high=Decimal("105"),
-            low=Decimal("95"), close=Decimal("100"),
+            timestamp=now,
+            symbol="AAPL",
+            open=Decimal("100"),
+            high=Decimal("105"),
+            low=Decimal("95"),
+            close=Decimal("100"),
             volume=Decimal("1000000"),
         )
 
@@ -464,7 +498,10 @@ class TestRiskParitySizerEdgeCases:
         targets = sizer.size_positions(signals, portfolio, market, config)
         if targets:
             # Quantity should be a whole number
-            assert abs(targets[0].target_quantity) == abs(targets[0].target_quantity).to_integral_value()
+            assert (
+                abs(targets[0].target_quantity)
+                == abs(targets[0].target_quantity).to_integral_value()
+            )
 
     def test_quantity_less_than_one_skips_signal(self) -> None:
         """Signal with calculated quantity < 1 should be skipped."""
@@ -473,9 +510,12 @@ class TestRiskParitySizerEdgeCases:
 
         # Very expensive stock with high volatility
         bar = Bar(
-            timestamp=now, symbol="BRKA",
-            open=Decimal("500000"), high=Decimal("510000"),
-            low=Decimal("490000"), close=Decimal("500000"),
+            timestamp=now,
+            symbol="BRKA",
+            open=Decimal("500000"),
+            high=Decimal("510000"),
+            low=Decimal("490000"),
+            close=Decimal("500000"),
             volume=Decimal("1000"),
         )
 
@@ -508,23 +548,27 @@ class TestRiskParitySizerPropertyBased:
         vol2=st.decimals(min_value=1, max_value=100, places=2),
     )
     @settings(max_examples=100)
-    def test_inverse_volatility_relationship(
-        self, vol1: Decimal, vol2: Decimal
-    ) -> None:
+    def test_inverse_volatility_relationship(self, vol1: Decimal, vol2: Decimal) -> None:
         """Position sizes should be inversely proportional to volatility."""
         sizer = RiskParitySizer()
         now = datetime.now(UTC)
 
         bar_a = Bar(
-            timestamp=now, symbol="SYM_A",
-            open=Decimal("100"), high=Decimal("105"),
-            low=Decimal("95"), close=Decimal("100"),
+            timestamp=now,
+            symbol="SYM_A",
+            open=Decimal("100"),
+            high=Decimal("105"),
+            low=Decimal("95"),
+            close=Decimal("100"),
             volume=Decimal("1000000"),
         )
         bar_b = Bar(
-            timestamp=now, symbol="SYM_B",
-            open=Decimal("100"), high=Decimal("105"),
-            low=Decimal("95"), close=Decimal("100"),
+            timestamp=now,
+            symbol="SYM_B",
+            open=Decimal("100"),
+            high=Decimal("105"),
+            low=Decimal("95"),
+            close=Decimal("100"),
             volume=Decimal("1000000"),
         )
 

@@ -171,7 +171,7 @@ class BuyingPowerConstraint:
                     stop_price=order.stop_price,
                     time_in_force=order.time_in_force,
                     timestamp=order.timestamp,
-                    strategy_id=order.strategy_id,
+                    policy_id=order.policy_id,
                     confidence=order.confidence,
                     tags=order.tags,
                     metadata=order.metadata,

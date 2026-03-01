@@ -424,7 +424,11 @@ class TestCorrelationConstraintMultipleOrders:
         market = MarketState(
             current_bars={"AAPL": bar_aapl, "MSFT": bar_msft, "GOOGL": bar_googl},
             volatility={"AAPL": Decimal("2"), "MSFT": Decimal("5"), "GOOGL": Decimal("4")},
-            liquidity={"AAPL": Decimal("1000000"), "MSFT": Decimal("1000000"), "GOOGL": Decimal("1000000")},
+            liquidity={
+                "AAPL": Decimal("1000000"),
+                "MSFT": Decimal("1000000"),
+                "GOOGL": Decimal("1000000"),
+            },
             correlations=correlations,
             timestamp=now,
         )
@@ -513,7 +517,11 @@ class TestCorrelationConstraintMultipleOrders:
         market = MarketState(
             current_bars={"AAPL": bar_aapl, "XOM": bar_xom, "GLD": bar_gld},
             volatility={"AAPL": Decimal("2"), "XOM": Decimal("3"), "GLD": Decimal("1")},
-            liquidity={"AAPL": Decimal("1000000"), "XOM": Decimal("1000000"), "GLD": Decimal("500000")},
+            liquidity={
+                "AAPL": Decimal("1000000"),
+                "XOM": Decimal("1000000"),
+                "GLD": Decimal("500000"),
+            },
             correlations=correlations,
             timestamp=now,
         )

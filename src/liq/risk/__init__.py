@@ -52,6 +52,9 @@ __all__ = [
     "EqualWeightSizer",
     "KellySizer",
     "RiskParitySizer",
+    # VaR/CVaR Risk Model
+    "EWMARiskModel",
+    "RiskModelOutput",
     # Constraints
     "Constraint",
     "MaxPositionConstraint",
@@ -96,5 +99,4 @@ from liq.risk.sizers import (
 )
 from liq.risk.state import AssetMetadata, ExecutionState, PriceState, RiskFactors
 from liq.risk.types import ConstraintResult, RejectedOrder, RoundingPolicy, TargetPosition
-
-__version__ = "0.1.0"
+from liq.risk.var_model import EWMARiskModel, RiskModelOutput

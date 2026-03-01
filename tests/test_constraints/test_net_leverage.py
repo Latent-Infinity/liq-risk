@@ -564,7 +564,9 @@ class TestNetLeverageConstraintPropertyBased:
 
     @given(
         max_net_leverage=st.floats(min_value=0.1, max_value=5.0),
-        equity=st.decimals(min_value=10000, max_value=1000000, places=2, allow_nan=False, allow_infinity=False),
+        equity=st.decimals(
+            min_value=10000, max_value=1000000, places=2, allow_nan=False, allow_infinity=False
+        ),
     )
     @settings(max_examples=50)
     def test_resulting_net_leverage_never_exceeds_limit(
@@ -578,7 +580,9 @@ class TestNetLeverageConstraintPropertyBased:
         now = datetime.now(UTC)
         constraint = NetLeverageConstraint()
         # Ensure gross leverage >= net leverage
-        config = RiskConfig(max_net_leverage=max_net_leverage, max_gross_leverage=max(max_net_leverage, 1.0))
+        config = RiskConfig(
+            max_net_leverage=max_net_leverage, max_gross_leverage=max(max_net_leverage, 1.0)
+        )
         portfolio = PortfolioState(
             cash=equity,
             positions={},

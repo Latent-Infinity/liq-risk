@@ -87,8 +87,7 @@ class Timeframe(Enum):
             return mapping[s]
 
         raise ValueError(
-            f"Unknown timeframe: {s}. "
-            f"Valid options: second, minute, hour, day, week, month"
+            f"Unknown timeframe: {s}. Valid options: second, minute, hour, day, week, month"
         )
 
     def to_timedelta(self) -> timedelta:
@@ -176,11 +175,7 @@ class FrequencyCapConstraint:
     ) -> None:
         if caps is None:
             # Default: 10 trades per minute per symbol
-            caps = [
-                FrequencyCapConfig(
-                    max_trades=10, timeframe=Timeframe.MINUTE, per_symbol=True
-                )
-            ]
+            caps = [FrequencyCapConfig(max_trades=10, timeframe=Timeframe.MINUTE, per_symbol=True)]
 
         # Validate caps
         for cap in caps:
@@ -275,7 +270,9 @@ class FrequencyCapConstraint:
             else:
                 result.append(order)
                 # Track this order for remaining orders in batch
-                batch_trades_by_symbol[order.symbol] = batch_trades_by_symbol.get(order.symbol, 0) + 1
+                batch_trades_by_symbol[order.symbol] = (
+                    batch_trades_by_symbol.get(order.symbol, 0) + 1
+                )
                 batch_trades_global += 1
 
         return ConstraintResult(orders=result, rejected=rejected, warnings=warnings)
@@ -319,9 +316,7 @@ class FrequencyCapConstraint:
                     )
             else:
                 # Count all trades in window
-                history_count = sum(
-                    1 for t in self._trade_history if t.timestamp >= window_start
-                )
+                history_count = sum(1 for t in self._trade_history if t.timestamp >= window_start)
                 total_count = history_count + batch_global
 
                 if total_count >= cap.max_trades:

@@ -953,7 +953,9 @@ class TestMaxPositionConstraintPropertyBased:
 
     @given(
         max_pct=st.floats(min_value=0.01, max_value=1.0),
-        equity=st.decimals(min_value=10000, max_value=1000000, places=2, allow_nan=False, allow_infinity=False),
+        equity=st.decimals(
+            min_value=10000, max_value=1000000, places=2, allow_nan=False, allow_infinity=False
+        ),
     )
     @settings(max_examples=50)
     def test_resulting_position_never_exceeds_limit(

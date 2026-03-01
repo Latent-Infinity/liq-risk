@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "liq-risk"
-version = "0.1.0"
+version = "0.1.1"
 description = "LIQ Stack: position sizing and risk management"
 readme = "README.md"
 license = { text = "MIT" }
@@ -15,6 +15,8 @@ dependencies = [
     "liq-signals>=0.1.0",
     "pydantic>=2.10",
     "polars>=0.20",
+    "numpy>=1.26",
+    "scipy>=1.12",
 ]
 
 [project.optional-dependencies]

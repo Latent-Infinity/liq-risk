@@ -354,9 +354,7 @@ class TestTargetPosition:
         )
 
         rounding = RoundingPolicy(lot_size=Decimal("10"))
-        order = tp.to_order_request(
-            timestamp=datetime.now(UTC), rounding=rounding
-        )
+        order = tp.to_order_request(timestamp=datetime.now(UTC), rounding=rounding)
 
         # Delta is 5, rounds to 0 with lot size 10
         assert order is None
@@ -608,15 +606,9 @@ class TestRoundingPolicy:
 
         policy = RoundingPolicy(lot_size=Decimal("10"))
 
-        assert policy.round_quantity(Decimal("154"), direction="nearest") == Decimal(
-            "150"
-        )
-        assert policy.round_quantity(Decimal("155"), direction="nearest") == Decimal(
-            "160"
-        )
-        assert policy.round_quantity(Decimal("156"), direction="nearest") == Decimal(
-            "160"
-        )
+        assert policy.round_quantity(Decimal("154"), direction="nearest") == Decimal("150")
+        assert policy.round_quantity(Decimal("155"), direction="nearest") == Decimal("160")
+        assert policy.round_quantity(Decimal("156"), direction="nearest") == Decimal("160")
 
     def test_round_quantity_lot_size_one(self):
         """Test round_quantity with lot size 1."""

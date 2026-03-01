@@ -39,9 +39,7 @@ class RoundingPolicy:
     min_notional: Decimal = Decimal("1")
     max_precision: int = 8
 
-    def round_quantity(
-        self, qty: Decimal, direction: str = "down"
-    ) -> Decimal:
+    def round_quantity(self, qty: Decimal, direction: str = "down") -> Decimal:
         """Round quantity to valid lot size.
 
         Args:

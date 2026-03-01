@@ -664,7 +664,9 @@ class TestGrossLeverageConstraintPropertyBased:
 
     @given(
         max_leverage=st.floats(min_value=0.1, max_value=5.0),
-        equity=st.decimals(min_value=10000, max_value=1000000, places=2, allow_nan=False, allow_infinity=False),
+        equity=st.decimals(
+            min_value=10000, max_value=1000000, places=2, allow_nan=False, allow_infinity=False
+        ),
     )
     @settings(max_examples=50)
     def test_resulting_leverage_never_exceeds_limit(

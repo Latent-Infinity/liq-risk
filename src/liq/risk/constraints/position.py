@@ -127,7 +127,7 @@ class MaxPositionConstraint:
                     remaining_room = max_position_value  # New position, starts at 0
                     constrained_qty = min(
                         new_long_qty,
-                        (remaining_room / price).to_integral_value(rounding=ROUND_DOWN)
+                        (remaining_room / price).to_integral_value(rounding=ROUND_DOWN),
                     )
 
                     total_qty = cover_qty + constrained_qty
@@ -142,7 +142,7 @@ class MaxPositionConstraint:
                             stop_price=order.stop_price,
                             time_in_force=order.time_in_force,
                             timestamp=order.timestamp,
-                            strategy_id=order.strategy_id,
+                            policy_id=order.policy_id,
                             confidence=order.confidence,
                             tags=order.tags,
                             metadata=order.metadata,
@@ -200,7 +200,7 @@ class MaxPositionConstraint:
                                 stop_price=order.stop_price,
                                 time_in_force=order.time_in_force,
                                 timestamp=order.timestamp,
-                                strategy_id=order.strategy_id,
+                                policy_id=order.policy_id,
                                 confidence=order.confidence,
                                 tags=order.tags,
                                 metadata=order.metadata,
@@ -239,7 +239,7 @@ class MaxPositionConstraint:
                     remaining_room = max_position_value  # New position, starts at 0
                     constrained_qty = min(
                         new_short_qty,
-                        (remaining_room / price).to_integral_value(rounding=ROUND_DOWN)
+                        (remaining_room / price).to_integral_value(rounding=ROUND_DOWN),
                     )
 
                     total_qty = close_qty + constrained_qty
@@ -254,7 +254,7 @@ class MaxPositionConstraint:
                             stop_price=order.stop_price,
                             time_in_force=order.time_in_force,
                             timestamp=order.timestamp,
-                            strategy_id=order.strategy_id,
+                            policy_id=order.policy_id,
                             confidence=order.confidence,
                             tags=order.tags,
                             metadata=order.metadata,
@@ -312,7 +312,7 @@ class MaxPositionConstraint:
                                 stop_price=order.stop_price,
                                 time_in_force=order.time_in_force,
                                 timestamp=order.timestamp,
-                                strategy_id=order.strategy_id,
+                                policy_id=order.policy_id,
                                 confidence=order.confidence,
                                 tags=order.tags,
                                 metadata=order.metadata,

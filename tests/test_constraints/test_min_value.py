@@ -360,8 +360,16 @@ class TestMinPositionValueConstraintPropertyBased:
     """Property-based tests for MinPositionValueConstraint."""
 
     @given(
-        min_value=st.decimals(min_value=0, max_value=10000, places=2, allow_nan=False, allow_infinity=False),
-        price=st.decimals(min_value=Decimal("0.01"), max_value=1000, places=2, allow_nan=False, allow_infinity=False),
+        min_value=st.decimals(
+            min_value=0, max_value=10000, places=2, allow_nan=False, allow_infinity=False
+        ),
+        price=st.decimals(
+            min_value=Decimal("0.01"),
+            max_value=1000,
+            places=2,
+            allow_nan=False,
+            allow_infinity=False,
+        ),
         quantity=st.integers(min_value=1, max_value=1000),
     )
     @settings(max_examples=50)

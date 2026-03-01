@@ -212,9 +212,7 @@ class TestEqualWeightSizerFormula:
             liquidity={"AAPL": Decimal("50000000")},
             timestamp=now,
         )
-        signals = [
-            Signal(symbol="AAPL", timestamp=now, direction="long", strength=1.0)
-        ]
+        signals = [Signal(symbol="AAPL", timestamp=now, direction="long", strength=1.0)]
 
         targets = sizer.size_positions(signals, portfolio, market, config)
 
@@ -556,9 +554,7 @@ class TestEqualWeightSizerEdgeCases:
             liquidity={},
             timestamp=now,
         )
-        signals = [
-            Signal(symbol="AAPL", timestamp=now, direction="long", strength=1.0)
-        ]
+        signals = [Signal(symbol="AAPL", timestamp=now, direction="long", strength=1.0)]
 
         targets = sizer.size_positions(signals, portfolio, market, config)
 
@@ -591,9 +587,7 @@ class TestEqualWeightSizerEdgeCases:
             liquidity={"AAPL": Decimal("50000000")},
             timestamp=now,
         )
-        signals = [
-            Signal(symbol="AAPL", timestamp=now, direction="long", strength=1.0)
-        ]
+        signals = [Signal(symbol="AAPL", timestamp=now, direction="long", strength=1.0)]
 
         targets = sizer.size_positions(signals, portfolio, market, config)
 
@@ -627,9 +621,7 @@ class TestEqualWeightSizerEdgeCases:
             liquidity={"AAPL": Decimal("50000000")},
             timestamp=now,
         )
-        signals = [
-            Signal(symbol="AAPL", timestamp=now, direction="long", strength=1.0)
-        ]
+        signals = [Signal(symbol="AAPL", timestamp=now, direction="long", strength=1.0)]
 
         targets = sizer.size_positions(signals, portfolio, market, config)
 
@@ -649,9 +641,7 @@ class TestEqualWeightSizerPropertyBased:
         ),
     )
     @settings(max_examples=100)
-    def test_quantity_always_positive_or_zero(
-        self, equity: Decimal, price: Decimal
-    ) -> None:
+    def test_quantity_always_positive_or_zero(self, equity: Decimal, price: Decimal) -> None:
         """Quantity should always be positive or signal skipped."""
         from liq.risk.sizers import EqualWeightSizer
 
@@ -678,9 +668,7 @@ class TestEqualWeightSizerPropertyBased:
             liquidity={"AAPL": Decimal("50000000")},
             timestamp=now,
         )
-        signals = [
-            Signal(symbol="AAPL", timestamp=now, direction="long", strength=1.0)
-        ]
+        signals = [Signal(symbol="AAPL", timestamp=now, direction="long", strength=1.0)]
 
         targets = sizer.size_positions(signals, portfolio, market, config)
 
@@ -725,9 +713,7 @@ class TestEqualWeightSizerPropertyBased:
             )
             volatility[symbol] = Decimal("2.00")
             liquidity[symbol] = Decimal("50000000")
-            signals.append(
-                Signal(symbol=symbol, timestamp=now, direction="long", strength=1.0)
-            )
+            signals.append(Signal(symbol=symbol, timestamp=now, direction="long", strength=1.0))
 
         market = MarketState(
             current_bars=bars,

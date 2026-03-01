@@ -460,7 +460,10 @@ class TestRiskEngineDrawdownHalt:
         ]
 
         result = engine.process_signals(
-            signals, portfolio, market, config,
+            signals,
+            portfolio,
+            market,
+            config,
             high_water_mark=Decimal("100000"),
         )
 
@@ -517,7 +520,10 @@ class TestRiskEngineDrawdownHalt:
         ]
 
         result = engine.process_signals(
-            signals, portfolio, market, config,
+            signals,
+            portfolio,
+            market,
+            config,
             high_water_mark=Decimal("100000"),
         )
 
@@ -1008,7 +1014,10 @@ class TestRiskEngineDailyLossHalt:
         ]
 
         result = engine.process_signals(
-            signals, portfolio, market, config,
+            signals,
+            portfolio,
+            market,
+            config,
             day_start_equity=Decimal("100000"),
         )
 
@@ -1057,7 +1066,10 @@ class TestRiskEngineDailyLossHalt:
         ]
 
         result = engine.process_signals(
-            signals, portfolio, market, config,
+            signals,
+            portfolio,
+            market,
+            config,
             day_start_equity=Decimal("100000"),
         )
 
@@ -1101,7 +1113,10 @@ class TestRiskEngineDailyLossHalt:
         ]
 
         result = engine.process_signals(
-            signals, portfolio, market, config,
+            signals,
+            portfolio,
+            market,
+            config,
             day_start_equity=Decimal("100000"),
         )
 

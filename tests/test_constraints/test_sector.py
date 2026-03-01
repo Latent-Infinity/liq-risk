@@ -502,7 +502,9 @@ class TestSectorExposureConstraintMultipleSectors:
         # First order should pass, second should be scaled
         assert len(constraint_result.orders) == 2
         assert constraint_result.orders[0].quantity == Decimal("200")  # AAPL full
-        assert constraint_result.orders[1].quantity == Decimal("100")  # MSFT scaled to $10k remaining
+        assert constraint_result.orders[1].quantity == Decimal(
+            "100"
+        )  # MSFT scaled to $10k remaining
 
 
 class TestSectorExposureConstraintEdgeCases:

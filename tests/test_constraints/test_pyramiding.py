@@ -306,7 +306,9 @@ class TestPyramidingConstraintAddSize:
                 total_added=Decimal("0"),
             )
         }
-        constraint = PyramidingConstraint(max_pyramid_adds=3, max_add_pct=0.5, pyramiding_state=state)
+        constraint = PyramidingConstraint(
+            max_pyramid_adds=3, max_add_pct=0.5, pyramiding_state=state
+        )
         config = RiskConfig()
         portfolio = PortfolioState(
             cash=Decimal("50000"),
@@ -365,7 +367,9 @@ class TestPyramidingConstraintAddSize:
                 total_added=Decimal("0"),
             )
         }
-        constraint = PyramidingConstraint(max_pyramid_adds=3, max_add_pct=0.5, pyramiding_state=state)
+        constraint = PyramidingConstraint(
+            max_pyramid_adds=3, max_add_pct=0.5, pyramiding_state=state
+        )
         config = RiskConfig()
         portfolio = PortfolioState(
             cash=Decimal("50000"),
