@@ -1,4 +1,4 @@
-"""Bounded update constraints for promotion gate (Phase 2).
+"""Bounded update constraints for promotion gate (Stage 2).
 
 OutputSpaceBoundConstraint: limits per-asset weight delta, total turnover, and trade count.
 RiskSpaceBoundConstraint: limits portfolio sigma and CVaR delta using EWMARiskModel.

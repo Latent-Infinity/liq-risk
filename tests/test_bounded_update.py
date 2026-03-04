@@ -1,4 +1,4 @@
-"""Tests for bounded update constraints (Phase 2 Step A).
+"""Tests for bounded update constraints (Stage 2 Step A).
 
 OutputSpaceBoundConstraint: weight delta, turnover, trade count limits.
 RiskSpaceBoundConstraint: sigma delta, cvar delta limits.
