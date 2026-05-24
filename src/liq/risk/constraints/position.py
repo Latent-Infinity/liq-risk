@@ -6,7 +6,7 @@ MaxPositionsConstraint: Limits total number of concurrent positions.
 
 from __future__ import annotations
 
-from decimal import ROUND_DOWN, Decimal
+from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from liq.core import OrderRequest, OrderSide
@@ -125,10 +125,7 @@ class MaxPositionConstraint:
                     # Split: cover portion passes, new long constrained
                     # Calculate room for new long position
                     remaining_room = max_position_value  # New position, starts at 0
-                    constrained_qty = min(
-                        new_long_qty,
-                        (remaining_room / price).to_integral_value(rounding=ROUND_DOWN),
-                    )
+                    constrained_qty = min(new_long_qty, remaining_room / price)
 
                     total_qty = cover_qty + constrained_qty
                     if total_qty >= 1:
@@ -186,10 +183,8 @@ class MaxPositionConstraint:
                     if order_value <= remaining_room:
                         result.append(order)
                     else:
-                        max_quantity = (remaining_room / price).to_integral_value(
-                            rounding=ROUND_DOWN
-                        )
-                        if max_quantity >= 1:
+                        max_quantity = remaining_room / price
+                        if max_quantity > 0:
                             new_order = OrderRequest(
                                 client_order_id=order.client_order_id,
                                 symbol=order.symbol,
@@ -237,10 +232,7 @@ class MaxPositionConstraint:
                     # Split: close portion passes, new short constrained
                     # Calculate room for new short position
                     remaining_room = max_position_value  # New position, starts at 0
-                    constrained_qty = min(
-                        new_short_qty,
-                        (remaining_room / price).to_integral_value(rounding=ROUND_DOWN),
-                    )
+                    constrained_qty = min(new_short_qty, remaining_room / price)
 
                     total_qty = close_qty + constrained_qty
                     if total_qty >= 1:
@@ -298,10 +290,8 @@ class MaxPositionConstraint:
                     if order_value <= remaining_room:
                         result.append(order)
                     else:
-                        max_quantity = (remaining_room / price).to_integral_value(
-                            rounding=ROUND_DOWN
-                        )
-                        if max_quantity >= 1:
+                        max_quantity = remaining_room / price
+                        if max_quantity > 0:
                             new_order = OrderRequest(
                                 client_order_id=order.client_order_id,
                                 symbol=order.symbol,

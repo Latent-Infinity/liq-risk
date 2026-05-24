@@ -4,7 +4,7 @@ VolatilitySizer scales position size inversely with volatility,
 ensuring consistent risk per trade regardless of market conditions.
 
 Formula:
-    quantity = (equity * risk_per_trade) / (price * atr_multiple * atr)
+    quantity = (equity * risk_per_trade) / (atr_multiple * atr)
 
 Higher volatility → smaller position.
 """
@@ -109,18 +109,23 @@ class VolatilitySizer:
             else:
                 price = bar.close
 
-            # Calculate quantity using volatility sizing formula
-            # qty = (equity * risk_per_trade) / (price * atr_multiple * atr)
+            # Calculate quantity using volatility sizing formula.
+            # ATR/range volatility is already price-denominated, so multiplying by price
+            # again would suppress quantity by another factor of the instrument price.
+            # qty = (equity * risk_per_trade) / (atr_multiple * atr)
             risk_amount = equity * Decimal(str(risk_pct))
-            divisor = price * Decimal(str(self.atr_multiple)) * volatility
+            divisor = Decimal(str(self.atr_multiple)) * volatility
 
             if divisor <= 0:
                 continue
 
             raw_quantity = risk_amount / divisor
-            if self.quantize_step:
+            quantity: Decimal
+            if self.quantize_step is not None:
                 steps = (raw_quantity / self.quantize_step).to_integral_value(rounding=ROUND_DOWN)
                 quantity = steps * self.quantize_step
+                if quantity == 0 and raw_quantity > 0 and self.min_quantity < 1:
+                    quantity = self.min_quantity
             else:
                 quantity = raw_quantity
 

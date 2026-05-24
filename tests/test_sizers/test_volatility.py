@@ -3,7 +3,7 @@
 Following TDD: RED phase - write failing tests first.
 
 VolatilitySizer Formula:
-    quantity = (equity * risk_per_trade) / (price * atr_multiple * atr)
+    quantity = (equity * risk_per_trade) / (atr_multiple * atr)
 
 Higher volatility → smaller position (inverse relationship).
 
@@ -173,12 +173,12 @@ class TestVolatilitySizerFormula:
     """Tests for the volatility sizing formula."""
 
     def test_sizing_formula_calculation(self) -> None:
-        """Verify the volatility sizing formula: qty = (equity * risk) / (price * atr_mult * atr)."""
+        """Verify the volatility sizing formula: qty = (equity * risk) / (atr_mult * atr)."""
         from liq.risk.sizers import VolatilitySizer
 
         now = datetime.now(UTC)
-        # Formula: qty = (100000 * 0.01) / (100 * 2.0 * 2.50)
-        #              = 1000 / 500 = 2 shares
+        # Formula: qty = (100000 * 0.01) / (2.0 * 2.50)
+        #              = 1000 / 5 = 200 shares
         sizer = VolatilitySizer(atr_multiple=2.0)
         config = RiskConfig(risk_per_trade=0.01)  # 1% risk
         portfolio = PortfolioState(
@@ -206,8 +206,8 @@ class TestVolatilitySizerFormula:
         targets = sizer.size_positions(signals, portfolio, market, config)
 
         assert len(targets) == 1
-        # qty = (100000 * 0.01) / (100 * 2.0 * 2.50) = 1000 / 500 = 2
-        assert targets[0].target_quantity == Decimal("2")
+        # qty = (100000 * 0.01) / (2.0 * 2.50) = 1000 / 5 = 200
+        assert targets[0].target_quantity == Decimal("200")
 
     def test_higher_volatility_smaller_position(self) -> None:
         """Higher volatility should result in smaller position size."""
@@ -338,8 +338,8 @@ class TestVolatilitySizerFormula:
 
         targets = sizer.size_positions(signals, portfolio, market, config)
 
-        # qty = (100000 * 0.01) / (100 * 2.0 * 2.50) = 1000 / 500 = 2
-        assert targets[0].target_quantity == Decimal("2")
+        # qty = (100000 * 0.01) / (2.0 * 2.50) = 1000 / 5 = 200
+        assert targets[0].target_quantity == Decimal("200")
 
     def test_can_use_close_price(self) -> None:
         """Can configure to use close price instead of midrange."""
@@ -373,8 +373,8 @@ class TestVolatilitySizerFormula:
 
         targets = sizer.size_positions(signals, portfolio, market, config)
 
-        # qty = (100000 * 0.01) / (50 * 2.0 * 2.50) = 1000 / 250 = 4
-        assert targets[0].target_quantity == Decimal("4")
+        # qty = (100000 * 0.01) / (2.0 * 2.50) = 1000 / 5 = 200
+        assert targets[0].target_quantity == Decimal("200")
 
 
 class TestVolatilitySizerEdgeCases:
@@ -487,7 +487,7 @@ class TestVolatilitySizerEdgeCases:
             positions={},
             timestamp=now,
         )
-        # Setup to get fractional result: (100000 * 0.01) / (100 * 2.0 * 3.0) = 1000 / 600 = 1.666...
+        # Setup to get fractional result: (100000 * 0.01) / (2.0 * 3.0) = 1000 / 6 = 166.666...
         bar = Bar(
             timestamp=now,
             symbol="AAPL",
@@ -507,8 +507,46 @@ class TestVolatilitySizerEdgeCases:
 
         targets = sizer.size_positions(signals, portfolio, market, config)
 
-        # Should round down to 1 (not 2)
-        assert targets[0].target_quantity == Decimal("1")
+        # Should round down to 166 whole shares.
+        assert targets[0].target_quantity == Decimal("166")
+
+    def test_fractional_quantity_below_minimum_uses_minimum_tradable_size(self) -> None:
+        """Crypto-style fractional sizing should emit the minimum lot for positive sub-lot risk."""
+        from liq.risk.sizers import VolatilitySizer
+
+        now = datetime.now(UTC)
+        sizer = VolatilitySizer(
+            atr_multiple=2.0,
+            min_quantity=Decimal("0.0001"),
+            quantize_step=Decimal("0.0001"),
+        )
+        config = RiskConfig(risk_per_trade=0.00001)
+        portfolio = PortfolioState(
+            cash=Decimal("1000"),
+            positions={},
+            timestamp=now,
+        )
+        bar = Bar(
+            timestamp=now,
+            symbol="BTC_USDT",
+            open=Decimal("50000"),
+            high=Decimal("51000"),
+            low=Decimal("49000"),
+            close=Decimal("50000"),
+            volume=Decimal("100"),
+        )
+        market = MarketState(
+            current_bars={"BTC_USDT": bar},
+            volatility={"BTC_USDT": Decimal("1000")},
+            liquidity={"BTC_USDT": Decimal("50000000")},
+            timestamp=now,
+        )
+        signals = [Signal(symbol="BTC_USDT", timestamp=now, direction="long", strength=1.0)]
+
+        targets = sizer.size_positions(signals, portfolio, market, config)
+
+        assert len(targets) == 1
+        assert targets[0].target_quantity == Decimal("0.0001")
 
     def test_quantity_less_than_one_skips_signal(self) -> None:
         """If calculated quantity < 1, signal should be skipped for whole-share mode."""
@@ -546,7 +584,7 @@ class TestVolatilitySizerEdgeCases:
 
         orders = sizer.size_positions(signals, portfolio, market, config)
 
-        # qty = (1000 * 0.001) / (500 * 2.0 * 10) = 1 / 10000 = 0.0001 -> rounds to 0
+        # qty = (1000 * 0.001) / (2.0 * 10) = 0.05 -> rounds to 0 in whole-share mode
         assert orders == []
 
     def test_multiple_signals_processed(self) -> None:

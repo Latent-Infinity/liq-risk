@@ -15,9 +15,13 @@ from liq.core import OrderRequest, OrderSide
 from liq.risk.types import ConstraintResult, RejectedOrder
 
 if TYPE_CHECKING:
+    from datetime import datetime
+
     from liq.core import PortfolioState
 
     from liq.risk.config import MarketState, RiskConfig
+
+_QTY_EPS = Decimal("1e-9")
 
 
 @dataclass
@@ -78,6 +82,9 @@ class PyramidingConstraint:
         self._max_pyramid_adds = max_pyramid_adds
         self._max_add_pct = Decimal(str(max_add_pct))
         self._state: dict[str, PyramidingState] = pyramiding_state or {}
+        # Signed net quantity per symbol, maintained by record_trade so the
+        # constraint can infer entry/add/close from a raw fill stream.
+        self._net_qty: dict[str, Decimal] = {}
 
     @property
     def name(self) -> str:
@@ -151,9 +158,32 @@ class PyramidingConstraint:
         warnings: list[str] = []
         result: list[OrderRequest] = []
 
+        # Running projected position per symbol across the batch, seeded from
+        # the (single, possibly stale) portfolio snapshot. The rolling runner
+        # calls apply() once per fold with the whole batch and a start-of-fold
+        # snapshot, so entry/add classification MUST track intra-batch state,
+        # not re-read the static snapshot for every order.
+        projected: dict[str, Decimal] = {}
+        # Adds already committed within THIS batch, on top of the cross-fold
+        # state.add_count maintained by record_trade.
+        in_batch_adds: dict[str, int] = {}
+        # Initial entry size observed within this batch (add-size base when the
+        # cross-fold state has no recorded initial_quantity yet).
+        in_batch_initial: dict[str, Decimal] = {}
+
         for order in orders:
-            maybe_position = portfolio_state.positions.get(order.symbol)
-            current_qty = maybe_position.quantity if maybe_position else Decimal("0")
+            symbol = order.symbol
+            if symbol not in projected:
+                maybe_position = portfolio_state.positions.get(symbol)
+                projected[symbol] = (
+                    maybe_position.quantity if maybe_position else Decimal("0")
+                )
+            current_qty = projected[symbol]
+            signed = (
+                order.quantity
+                if order.side == OrderSide.BUY
+                else -order.quantity
+            )
 
             # Check if this is a risk-reducing order
             is_risk_reducing = self._is_risk_reducing(order, current_qty)
@@ -161,55 +191,65 @@ class PyramidingConstraint:
             if is_risk_reducing:
                 # Risk-reducing orders always pass
                 result.append(order)
-
-                # Check if this fully closes the position
-                if self._would_close_position(order, current_qty):
-                    self.reset_state(order.symbol)
+                new_qty = current_qty + signed
+                # Check if this fully closes (or flips) the position
+                if self._would_close_position(order, current_qty) or (
+                    (current_qty > 0) != (new_qty > 0) and new_qty != 0
+                ):
+                    self.reset_state(symbol)
+                    in_batch_adds[symbol] = 0
+                    in_batch_initial.pop(symbol, None)
+                    projected[symbol] = new_qty if new_qty != 0 else Decimal("0")
+                else:
+                    projected[symbol] = new_qty
                 continue
 
             # This is a risk-increasing order (adding to position)
-            state = self.get_state(order.symbol)
+            state = self.get_state(symbol)
 
             # Check if this is an initial entry (no existing position)
             if current_qty == 0:
                 # Initial entry - record it and pass
                 result.append(order)
-                # Note: We don't update state here because we don't know if
-                # the order will actually be filled. State should be updated
-                # by the execution layer after fill confirmation.
-                # For now, we pass it through and initialize state if needed.
-                if state.initial_quantity == 0:
-                    # First time seeing this symbol - will be initial entry
-                    pass  # State update happens in _record_fill
+                in_batch_adds[symbol] = 0
+                in_batch_initial[symbol] = order.quantity
+                projected[symbol] = signed
                 continue
 
-            # This is an add to existing position
-            # Check max adds limit
-            if state.add_count >= self._max_pyramid_adds:
+            # This is an add to existing position. The add budget is shared
+            # between cross-fold state (record_trade) and this batch.
+            effective_adds = state.add_count + in_batch_adds.get(symbol, 0)
+            if effective_adds >= self._max_pyramid_adds:
                 rejected.append(
                     RejectedOrder(
                         order=order,
                         constraint_name=self.name,
-                        reason=f"Pyramiding limit reached: {state.add_count} adds "
+                        reason=f"Pyramiding limit reached: {effective_adds} adds "
                         f"(max {self._max_pyramid_adds})",
                     )
                 )
                 continue
 
-            # Check max add size
-            # Use initial quantity if set, otherwise current position
-            base_qty = state.initial_quantity if state.initial_quantity > 0 else abs(current_qty)
+            # Check max add size. Base on recorded initial quantity, else the
+            # in-batch initial entry size, else current projected exposure.
+            if state.initial_quantity > 0:
+                base_qty = state.initial_quantity
+            elif symbol in in_batch_initial:
+                base_qty = in_batch_initial[symbol]
+            else:
+                base_qty = abs(current_qty)
             max_add_qty = base_qty * self._max_add_pct
 
             if order.quantity > max_add_qty:
                 # Scale down to max allowed
                 if max_add_qty >= 1:
+                    scaled_qty = max_add_qty.to_integral_value()
                     new_order = OrderRequest(
                         client_order_id=order.client_order_id,
                         symbol=order.symbol,
                         side=order.side,
                         order_type=order.order_type,
-                        quantity=max_add_qty.to_integral_value(),
+                        quantity=scaled_qty,
                         limit_price=order.limit_price,
                         stop_price=order.stop_price,
                         time_in_force=order.time_in_force,
@@ -224,10 +264,16 @@ class PyramidingConstraint:
                         RejectedOrder(
                             order=order,
                             constraint_name=self.name,
-                            reason=f"Scaled from {order.quantity} to {max_add_qty.to_integral_value()} "
+                            reason=f"Scaled from {order.quantity} to {scaled_qty} "
                             f"(max add {self._max_add_pct:.0%} of initial {base_qty})",
                             original_quantity=order.quantity,
                         )
+                    )
+                    # A (scaled) add was admitted -> consume add budget and
+                    # advance the projected position by the scaled quantity.
+                    in_batch_adds[symbol] = in_batch_adds.get(symbol, 0) + 1
+                    projected[symbol] = current_qty + (
+                        scaled_qty if order.side == OrderSide.BUY else -scaled_qty
                     )
                 else:
                     rejected.append(
@@ -239,8 +285,11 @@ class PyramidingConstraint:
                         )
                     )
             else:
-                # Add within limits - pass
+                # Add within limits - pass; consume add budget and advance the
+                # projected position so the next batch order sees this add.
                 result.append(order)
+                in_batch_adds[symbol] = in_batch_adds.get(symbol, 0) + 1
+                projected[symbol] = current_qty + signed
 
         return ConstraintResult(orders=result, rejected=rejected, warnings=warnings)
 
@@ -264,6 +313,61 @@ class PyramidingConstraint:
         else:
             # Selling to close long
             return current_qty > 0 and order.quantity >= current_qty
+
+    def record_trade(
+        self,
+        symbol: str,
+        timestamp: datetime,
+        side: OrderSide,
+        quantity: Decimal,
+    ) -> None:
+        """Update pyramiding state from a confirmed fill.
+
+        This is the runner's duck-typed fill-feedback contract (the same one
+        `FrequencyCapConstraint.record_trade` implements). The rolling runner
+        calls this for every fill after simulation. Unlike `record_fill`, no
+        `is_add` flag is provided, so entry/add/close is inferred from running
+        signed net quantity per symbol:
+
+        - net leaves 0           -> initial entry (reset add budget)
+        - |net| increases (same sign) -> add (add_count += 1)
+        - net returns to ~0      -> position closed (reset state)
+        - sign flip              -> close + immediate re-entry
+
+        Args:
+            symbol: Filled symbol.
+            timestamp: Fill timestamp (unused; matches the runner contract).
+            side: BUY adds positive signed quantity, SELL negative.
+            quantity: Filled quantity (> 0).
+        """
+        del timestamp  # part of the runner contract; not needed here
+        delta = quantity if side == OrderSide.BUY else -quantity
+        prev = self._net_qty.get(symbol, Decimal("0"))
+        new = prev + delta
+
+        if abs(new) <= _QTY_EPS:
+            # Flat -> position closed.
+            self._net_qty[symbol] = Decimal("0")
+            self.reset_state(symbol)
+            return
+
+        if prev == 0 or (prev > 0) != (new > 0):
+            # Opening from flat, or sign flip (close + re-enter).
+            self._net_qty[symbol] = new
+            state = self.get_state(symbol)
+            state.initial_quantity = abs(new)
+            state.add_count = 0
+            state.total_added = Decimal("0")
+            return
+
+        if abs(new) > abs(prev) + _QTY_EPS:
+            # Same-direction increase -> add.
+            state = self.get_state(symbol)
+            state.add_count += 1
+            state.total_added += quantity
+
+        # else: partial reduction (still in position) -> no add-count change.
+        self._net_qty[symbol] = new
 
     def record_fill(
         self,

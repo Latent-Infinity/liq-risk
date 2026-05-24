@@ -17,6 +17,8 @@ from liq.signals import Signal
 from liq.risk import MarketState, RiskConfig
 from liq.risk.constraints import (
     MaxPositionConstraint,
+    MaxPositionsConstraint,
+    MinPositionValueConstraint,
 )
 from liq.risk.sizers import VolatilitySizer
 
@@ -237,6 +239,82 @@ class TestRiskEngineBasic:
         assert result.orders[0].side == OrderSide.SELL
         assert result.orders[0].symbol == "AAPL"
 
+    def test_same_symbol_constraint_rejections_remain_rejected_signals(self) -> None:
+        """Rejected same-symbol candidates should not disappear when some orders survive."""
+        from liq.risk.engine import RiskEngine
+
+        now = datetime.now(UTC)
+        engine = RiskEngine(constraints=[MaxPositionsConstraint()])
+        config = RiskConfig(max_positions=3)
+        portfolio = PortfolioState(
+            cash=Decimal("100000"),
+            positions={},
+            timestamp=now,
+        )
+        bar = Bar(
+            timestamp=now,
+            symbol="AAPL",
+            open=Decimal("100"),
+            high=Decimal("102"),
+            low=Decimal("98"),
+            close=Decimal("100"),
+            volume=Decimal("1000000"),
+        )
+        market = MarketState(
+            current_bars={"AAPL": bar},
+            volatility={"AAPL": Decimal("2.00")},
+            liquidity={"AAPL": Decimal("50000000")},
+            timestamp=now,
+        )
+        signals = [
+            Signal(symbol="AAPL", timestamp=now, direction="long", strength=strength)
+            for strength in [0.9, 0.8, 0.7, 0.6, 0.5]
+        ]
+
+        result = engine.process_signals(signals, portfolio, market, config)
+
+        assert len(result.orders) == 3
+        assert len(result.rejected_signals) == 2
+        assert [signal.strength for signal in result.rejected_signals] == [0.6, 0.5]
+
+    def test_sizing_skips_are_reported_separately_from_constraints(self) -> None:
+        """Sizer-level skips should be visible even when constraints never run."""
+        from liq.risk.engine import RiskEngine
+
+        now = datetime.now(UTC)
+        engine = RiskEngine()
+        config = RiskConfig()
+        portfolio = PortfolioState(
+            cash=Decimal("100000"),
+            positions={},
+            timestamp=now,
+        )
+        bar = Bar(
+            timestamp=now,
+            symbol="AAPL",
+            open=Decimal("100"),
+            high=Decimal("102"),
+            low=Decimal("98"),
+            close=Decimal("100"),
+            volume=Decimal("1000000"),
+        )
+        market = MarketState(
+            current_bars={"AAPL": bar},
+            volatility={},
+            liquidity={"AAPL": Decimal("50000000")},
+            timestamp=now,
+        )
+        signals = [Signal(symbol="AAPL", timestamp=now, direction="long", strength=0.9)]
+
+        result = engine.process_signals(signals, portfolio, market, config)
+
+        assert result.orders == []
+        assert result.rejected_signals == signals
+        assert result.constraint_violations == {}
+        assert result.sizing_rejections == {
+            "VolatilitySizer": ["AAPL: No target produced by sizer"]
+        }
+
     def test_flat_signal_produces_no_order(self) -> None:
         """Flat signal should produce no order."""
         from liq.risk.engine import RiskEngine
@@ -365,6 +443,52 @@ class TestRiskEngineConstraints:
 
         # Should produce an order (basic test that custom constraints work)
         assert len(result.orders) >= 0  # Just verify it runs
+
+    def test_min_position_value_diagnostics_include_rejected_notional(self) -> None:
+        """Min-position rejects should expose numeric notional values for tuning."""
+        from liq.risk.engine import RiskEngine
+
+        now = datetime.now(UTC)
+        config = RiskConfig(
+            min_position_value=Decimal("5"),
+            risk_per_trade=0.00001,
+        )
+        engine = RiskEngine(constraints=[MinPositionValueConstraint()])
+        portfolio = PortfolioState(
+            cash=Decimal("1000"),
+            positions={},
+            timestamp=now,
+        )
+        bar = Bar(
+            timestamp=now,
+            symbol="BTC_USDT",
+            open=Decimal("40000"),
+            high=Decimal("41000"),
+            low=Decimal("39000"),
+            close=Decimal("40000"),
+            volume=Decimal("100"),
+        )
+        market = MarketState(
+            current_bars={"BTC_USDT": bar},
+            volatility={"BTC_USDT": Decimal("1000")},
+            liquidity={"BTC_USDT": Decimal("50000000")},
+            timestamp=now,
+        )
+        signals = [Signal(symbol="BTC_USDT", timestamp=now, direction="long", strength=0.9)]
+
+        result = engine.process_signals(signals, portfolio, market, config)
+
+        assert result.orders == []
+        assert result.constraint_violations["MinPositionValueConstraint"] == [
+            "BTC_USDT: Order value $4.00 below minimum $5.00"
+        ]
+        assert result.constraint_diagnostics == {
+            "MinPositionValueConstraint": {
+                "rejected_notional_values": [4.0],
+                "min_position_value": 5.0,
+                "count": 1,
+            }
+        }
 
     def test_constraint_violations_tracked(self) -> None:
         """Constraint violations should be tracked in result."""

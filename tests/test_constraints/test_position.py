@@ -143,6 +143,49 @@ class TestMaxPositionConstraintBasic:
         # Should be reduced to 50 shares ($5000 = 5%)
         assert constraint_result.orders[0].quantity == Decimal("50")
 
+    def test_crypto_fractional_order_exceeding_limit_reduced(self) -> None:
+        """Crypto orders should be reduced to fractional quantities when capped by max position."""
+        from liq.risk.constraints import MaxPositionConstraint
+
+        now = datetime.now(UTC)
+        constraint = MaxPositionConstraint()
+        config = RiskConfig(max_position_pct=0.05)  # 5% limit = $5000
+        portfolio = PortfolioState(
+            cash=Decimal("100000"),
+            positions={},
+            timestamp=now,
+        )
+        bar = Bar(
+            timestamp=now,
+            symbol="BTC_USDT",
+            open=Decimal("50000"),
+            high=Decimal("51000"),
+            low=Decimal("49000"),
+            close=Decimal("50000"),
+            volume=Decimal("100"),
+        )
+        market = MarketState(
+            current_bars={"BTC_USDT": bar},
+            volatility={"BTC_USDT": Decimal("1000")},
+            liquidity={"BTC_USDT": Decimal("50000000")},
+            timestamp=now,
+        )
+        orders = [
+            OrderRequest(
+                symbol="BTC_USDT",
+                side=OrderSide.BUY,
+                order_type=OrderType.MARKET,
+                quantity=Decimal("1"),
+                timestamp=now,
+            )
+        ]
+
+        constraint_result = constraint.apply(orders, portfolio, market, config)
+
+        assert len(constraint_result.orders) == 1
+        assert constraint_result.orders[0].quantity == Decimal("0.1")
+
+
     def test_existing_position_considered(self) -> None:
         """Existing position should be considered when checking limit."""
         from liq.risk.constraints import MaxPositionConstraint

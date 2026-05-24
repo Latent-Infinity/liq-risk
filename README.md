@@ -118,7 +118,7 @@ Sizes positions based on ATR/volatility to normalize risk across instruments.
 from liq.risk.sizers import VolatilitySizer
 
 sizer = VolatilitySizer()
-# Position = (equity × risk_per_trade) / (ATR × price)
+# Quantity = (equity × risk_per_trade) / (ATR × atr_multiple)
 ```
 
 #### EqualWeightSizer

@@ -168,7 +168,7 @@ class NetLeverageConstraint:
             return ConstraintResult(orders=result, rejected=rejected, warnings=warnings)
 
         # Scale down proportionally
-        total_delta: Decimal = abs(proposed_delta)  # type: ignore[assignment]
+        total_delta = Decimal(str(abs(proposed_delta)))
         scale_factor = available / total_delta
 
         for order, delta in increasing_orders:

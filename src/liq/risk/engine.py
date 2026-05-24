@@ -7,6 +7,7 @@ while applying risk management rules.
 from __future__ import annotations
 
 import logging
+from collections import Counter
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
@@ -33,6 +34,7 @@ class RiskEngineResult(BaseModel):
         orders: Sized and constrained orders ready for execution.
         rejected_signals: Signals that were rejected by constraints.
         constraint_violations: Map of constraint name to violation details.
+        sizing_rejections: Map of sizer name to signals skipped before order creation.
         stop_losses: Map of symbol to stop-loss price.
         take_profits: Map of symbol to take-profit price.
         halted: Whether trading is halted (e.g., drawdown limit).
@@ -59,6 +61,14 @@ class RiskEngineResult(BaseModel):
     constraint_violations: dict[str, list[str]] = Field(
         default_factory=dict,
         description="Map of constraint name to violation details",
+    )
+    constraint_diagnostics: dict[str, dict[str, Any]] = Field(
+        default_factory=dict,
+        description="Structured numeric diagnostics for constraint rejects",
+    )
+    sizing_rejections: dict[str, list[str]] = Field(
+        default_factory=dict,
+        description="Map of sizer name to signals skipped before order creation",
     )
     stop_losses: dict[str, Decimal] = Field(
         default_factory=dict,
@@ -215,6 +225,28 @@ class RiskEngine:
         # Size positions - sizers now return TargetPosition
         sizer = self._get_sizer()
         sizer_output = sizer.size_positions(signals, portfolio_state, market_state, risk_config)
+        sizer_name = type(sizer).__name__
+        sized_signal_keys = Counter()
+        for item in sizer_output:
+            symbol = item.symbol
+            strength = (
+                item.signal_strength
+                if isinstance(item, TargetPosition)
+                else getattr(item, "confidence", None)
+            )
+            sized_signal_keys[(symbol, strength)] += 1
+
+        sizing_rejections: dict[str, list[str]] = {}
+        for signal in signals:
+            if getattr(signal, "direction", "") == "flat":
+                continue
+            signal_key = (signal.symbol, getattr(signal, "strength", None))
+            if sized_signal_keys[signal_key] > 0:
+                sized_signal_keys[signal_key] -= 1
+                continue
+            sizing_rejections.setdefault(sizer_name, []).append(
+                f"{signal.symbol}: No target produced by sizer"
+            )
 
         # Convert TargetPosition to OrderRequest
         # Use market state timestamp if available, otherwise UTC now
@@ -240,6 +272,7 @@ class RiskEngine:
         # Apply constraint chain
         constraints = self._get_constraints()
         constraint_violations: dict[str, list[str]] = {}
+        constraint_diagnostics: dict[str, dict[str, Any]] = {}
 
         for constraint in constraints:
             constraint_result = constraint.apply(orders, portfolio_state, market_state, risk_config)
@@ -255,10 +288,38 @@ class RiskEngine:
                     constraint_violations[constraint_name].append(
                         f"{rejected.order.symbol}: {rejected.reason}"
                     )
+                    if constraint_name == "MinPositionValueConstraint":
+                        if not isinstance(rejected.order, OrderRequest):
+                            continue
+                        bar = market_state.current_bars.get(rejected.order.symbol)
+                        if bar is None:
+                            continue
+                        notional = float(rejected.order.quantity * bar.close)
+                        min_value = float(risk_config.min_position_value)
+                        diagnostics = constraint_diagnostics.setdefault(
+                            constraint_name,
+                            {
+                                "rejected_notional_values": [],
+                                "min_position_value": min_value,
+                                "count": 0,
+                            },
+                        )
+                        diagnostics["rejected_notional_values"].append(notional)
+                        diagnostics["count"] += 1
 
-        # Identify rejected signals
-        final_symbols = {o.symbol for o in orders}
-        rejected_signals = [s for s in signals if s.symbol not in final_symbols]
+        # Identify rejected signals by matching surviving orders back to their source signals.
+        # Same-symbol batches are common in rolling windows, so symbol membership alone hides
+        # lower-confidence candidates rejected by constraints such as MaxPositionsConstraint.
+        accepted_signal_keys = Counter(
+            (order.symbol, getattr(order, "confidence", None)) for order in orders
+        )
+        rejected_signals = []
+        for signal in signals:
+            signal_key = (signal.symbol, getattr(signal, "strength", None))
+            if accepted_signal_keys[signal_key] > 0:
+                accepted_signal_keys[signal_key] -= 1
+                continue
+            rejected_signals.append(signal)
 
         # Calculate stop-losses and take-profits
         stop_losses = self._calculate_stop_losses(orders, market_state, risk_config)
@@ -268,6 +329,8 @@ class RiskEngine:
             orders=orders,
             rejected_signals=rejected_signals,
             constraint_violations=constraint_violations,
+            constraint_diagnostics=constraint_diagnostics,
+            sizing_rejections=sizing_rejections,
             stop_losses=stop_losses,
             take_profits=take_profits,
             halted=halted,
