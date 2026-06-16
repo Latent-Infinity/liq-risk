@@ -1,0 +1,81 @@
+{
+  "gate_4": {
+    "gate_4_passed": true,
+    "improved_metrics": [
+      "vol_target_error",
+      "turnover",
+      "cost_drag"
+    ],
+    "per_metric": {
+      "clipping_freq": {
+        "baseline": 0.0,
+        "candidate": 0.0,
+        "passed": true,
+        "ratio": 1.0,
+        "threshold": 1.05
+      },
+      "turnover": {
+        "baseline": 0.006848497392399401,
+        "candidate": 0.006317261715489223,
+        "passed": true,
+        "ratio": 0.9224303308489604,
+        "threshold": 1.05
+      },
+      "vol_target_error": {
+        "baseline": 0.03553942191091185,
+        "candidate": 0.008130033289966886,
+        "passed": true,
+        "ratio": 0.22876098858182836,
+        "threshold": 1.02
+      }
+    },
+    "thresholds": {
+      "clipping_margin": 0.05,
+      "improvement_threshold": 0.05,
+      "turnover_margin": 0.05,
+      "vol_target_margin": 0.02
+    }
+  },
+  "gate_4_passed": true,
+  "per_estimator": {
+    "atr_normalized": {
+      "clipping_freq": 0.0,
+      "cost_drag": 6.848497392399401e-07,
+      "drawdown": 0.18276249826418922,
+      "max_clip": 3.0,
+      "n_periods": 731,
+      "target_vol": 0.15,
+      "turnover": 0.006848497392399401,
+      "vol_target_error": 0.03553942191091185
+    },
+    "risk_var": {
+      "clipping_freq": 0.0,
+      "cost_drag": 6.317261715489221e-07,
+      "drawdown": 0.24848253818183225,
+      "max_clip": 3.0,
+      "n_periods": 731,
+      "target_vol": 0.15,
+      "turnover": 0.006317261715489223,
+      "vol_target_error": 0.008130033289966886
+    }
+  },
+  "provenance": {
+    "artifact_kind": "sizing_comparison_report",
+    "manifest_sha256_path": "fixtures/real/manifest.sha256",
+    "script": "scripts/eval_sizing.py",
+    "spec_hash": "a0bdf610f361a1e8"
+  },
+  "spec": {
+    "canonical_estimator": "gk_yang_zhang",
+    "cost_bps": 1.0,
+    "estimators": [
+      "risk_var",
+      "atr_normalized"
+    ],
+    "max_clip": 3.0,
+    "n_symbols": 30,
+    "requested_estimator": "risk_var",
+    "target_vol": 0.15,
+    "window": 21
+  }
+}

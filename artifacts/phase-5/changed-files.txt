@@ -1,0 +1,12 @@
+# Phase 5 — liq-risk changed files
+
+## New docs
+- docs/atr-retirement.md
+
+## New AGENT_STATE
+- AGENT_STATE.md (first plan touch)
+
+## Artifacts
+- artifacts/phase-5/changed-files.txt
+- artifacts/phase-5/decisions.md
+- artifacts/phase-5/sizing-comparison.json
