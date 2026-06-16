@@ -1,0 +1,11 @@
+# Phase F — liq-risk changed files
+
+## Updated / new docs
+- README.md
+
+## Updated AGENT_STATE
+- AGENT_STATE.md  (Phase F row appended, ready-for-review)
+
+## Artifacts
+- artifacts/phase-F/changed-files.txt
+- artifacts/phase-F/decisions.md

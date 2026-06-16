@@ -4,6 +4,14 @@ Position sizing and risk management for the LIQ Stack.
 
 **liq-risk** serves as "The Bridge Between Prediction and Execution" — transforming trading signals into sized order requests while enforcing risk constraints.
 
+> **ATR retirement (non-blocking).** The canonical risk-variance
+> estimator in `liq-features` passes the Gate 4 non-inferiority test
+> against the ATR compatibility bridge `natr_t = ATR_t / close_t`. The
+> head-to-head numbers + consumer migration path are in
+> [`docs/atr-retirement.md`](docs/atr-retirement.md). The actual
+> retirement of the ATR-based sizer is owned by a separate
+> downstream-migration plan, not by this repo's tree.
+
 ## Installation
 
 ```bash
