@@ -128,6 +128,56 @@ HYSTERESIS_APPLIED = ReasonCode(
         "previous value."
     ),
 )
+SHOCK_OVERRIDE_APPLIED = ReasonCode(
+    code="SHOCK_OVERRIDE_APPLIED",
+    stage="shock",
+    severity="warn",
+    description=(
+        "Shock-override bypassed smoothing: size_vol = "
+        "max(size_vol_smoothed, shock_floor_multiplier * raw_vol)."
+    ),
+)
+FALLBACK_HOLD = ReasonCode(
+    code="FALLBACK_HOLD",
+    stage="fallback",
+    severity="conservative",
+    description=(
+        "Monotonic-conservatism HOLD: size_vol >= last_trusted_size_vol while "
+        "the primary source is invalid."
+    ),
+)
+FALLBACK_RECOVERY_DECAY = ReasonCode(
+    code="FALLBACK_RECOVERY_DECAY",
+    stage="fallback",
+    severity="info",
+    description=(
+        "Release valve: source recovered, size_vol may decay per smoothing "
+        "policy bounded by max daily decrease."
+    ),
+)
+SOURCE_RECOVERED = ReasonCode(
+    code="SOURCE_RECOVERED",
+    stage="fallback",
+    severity="ok",
+    description=(
+        "Fallback source passed N consecutive valid observations and the "
+        "release valve is now open."
+    ),
+)
+ATR_FALLBACK = ReasonCode(
+    code="ATR_FALLBACK",
+    stage="fallback",
+    severity="conservative",
+    description="Sizing routed to legacy ATR-based fallback (tier 5).",
+)
+TRADE_BLOCKED = ReasonCode(
+    code="TRADE_BLOCKED",
+    stage="fallback",
+    severity="conservative",
+    description=(
+        "All upstream fallback tiers failed; trade blocked / no-size (tier 6)."
+    ),
+)
 
 REASON_CODES: tuple[ReasonCode, ...] = (
     SELECT_MEASUREMENT,
@@ -142,14 +192,23 @@ REASON_CODES: tuple[ReasonCode, ...] = (
     CAP_APPLIED,
     SMOOTHING_APPLIED,
     HYSTERESIS_APPLIED,
+    SHOCK_OVERRIDE_APPLIED,
+    FALLBACK_HOLD,
+    FALLBACK_RECOVERY_DECAY,
+    SOURCE_RECOVERED,
+    ATR_FALLBACK,
+    TRADE_BLOCKED,
 )
 
 
 __all__ = [
+    "ATR_FALLBACK",
     "CAP_APPLIED",
     "CONSERVATIVE_COMBINATION_APPLIED",
     "DATA_QUALITY_FALLBACK",
     "EMERGENCY_FLOOR_APPLIED",
+    "FALLBACK_HOLD",
+    "FALLBACK_RECOVERY_DECAY",
     "FLOOR_APPLIED",
     "HYSTERESIS_APPLIED",
     "REASON_CODES",
@@ -158,8 +217,11 @@ __all__ = [
     "SELECT_HYBRID",
     "SELECT_MEASUREMENT",
     "SELECT_UNCERTAINTY_ADJUSTED",
+    "SHOCK_OVERRIDE_APPLIED",
     "SMOOTHING_APPLIED",
+    "SOURCE_RECOVERED",
     "Severity",
     "Stage",
+    "TRADE_BLOCKED",
     "UNCERTAINTY_APPLIED",
 ]

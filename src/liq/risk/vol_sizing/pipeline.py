@@ -46,6 +46,11 @@ from .reason_codes import (
     UNCERTAINTY_APPLIED,
     ReasonCode,
 )
+from .shock_override import (
+    DecisionKind,
+    ShockOverrideConfig,
+    apply_shock_override,
+)
 
 
 def _select_raw_vol(
@@ -133,12 +138,20 @@ def compute_size_vol(
     policy: SizingPolicy,
     previous_size_vol: float | None,
     regime_labels: frozenset[str] = frozenset(),
+    shock_config: ShockOverrideConfig | None = None,
+    shock_labels: frozenset[str] = frozenset(),
+    decision_kind: DecisionKind = "eod",
 ) -> SizeVolInput:
     """Run the ordered sizing transform.
 
     All seven steps execute in order. The returned :class:`SizeVolInput`
     carries the full reason-code stack: one code per pipeline step that
     changed the running vol.
+
+    When ``shock_config`` is provided, the §9.6 shock-override is evaluated
+    *after* smoothing: if the override fires, ``size_vol`` is replaced by
+    ``max(size_vol_smoothed, shock_floor_multiplier * raw_vol)`` and the
+    ``SHOCK_OVERRIDE_APPLIED`` reason code is appended.
     """
 
     reason_stack: list[ReasonCode] = []
@@ -232,6 +245,28 @@ def compute_size_vol(
             reason_stack.append(EMERGENCY_FLOOR_APPLIED)
             emergency_floor_applied = True
 
+    # 6.5 SHOCK OVERRIDE (§9.6) — optional, applies after smoothing.
+    shock_override_applied = False
+    if shock_config is not None:
+        shock_result = apply_shock_override(
+            raw_vol=raw_vol,
+            size_vol_smoothed=size_vol,
+            previous_size_vol=previous_size_vol,
+            labels=shock_labels,
+            decision_kind=decision_kind,
+            config=shock_config,
+        )
+        size_vol = shock_result.size_vol
+        if shock_result.triggered and shock_result.reason_code is not None:
+            shock_override_applied = True
+            reason_stack.append(shock_result.reason_code)
+        # Re-enforce EMERGENCY_FLOOR after override.
+        if size_vol < policy.emergency_floor:
+            size_vol = policy.emergency_floor
+            if EMERGENCY_FLOOR_APPLIED not in reason_stack:
+                reason_stack.append(EMERGENCY_FLOOR_APPLIED)
+                emergency_floor_applied = True
+
     source_valid_from = (
         measurement.source_valid_from
         if measurement is not None
@@ -278,7 +313,7 @@ def compute_size_vol(
         cap_applied=cap_applied,
         clip_applied=clip_applied,
         smoothing_applied=smoothing_applied or hysteresis_applied,
-        shock_override_applied=False,  # F5H deliverable
+        shock_override_applied=shock_override_applied,
         regime_labels=regime_labels,
         reason_codes=tuple(reason_stack),
         valid_until=valid_until,

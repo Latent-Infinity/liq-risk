@@ -18,10 +18,12 @@ from liq.risk.vol_sizing import (
     SELECT_HYBRID,
     SELECT_MEASUREMENT,
     SELECT_UNCERTAINTY_ADJUSTED,
+    SHOCK_OVERRIDE_APPLIED,
     SMOOTHING_APPLIED,
     UNCERTAINTY_APPLIED,
     ForecastInput,
     MeasurementInput,
+    ShockOverrideConfig,
     SizingPolicy,
     compute_size_vol,
 )
@@ -413,4 +415,138 @@ def test_sizing_policy_rejects_misordered_thresholds() -> None:
             uncertainty_max_extra=0.5,
             smoothing_half_life=5,
             smoothing_max_daily_decrease=0.1,
+        )
+
+
+def test_pipeline_with_shock_config_fires_override_on_ratio_jump() -> None:
+    policy = _policy(policy_id="hybrid", smoothing_half_life=10, smoothing_max_daily_decrease=0.10)
+    shock_config = ShockOverrideConfig(shock_ratio_threshold=1.5, shock_floor_multiplier=1.0)
+    # previous=0.02; measurement=0.10 makes raw_vol=0.10 → ratio=5 → fires
+    row = compute_size_vol(
+        symbol="AAPL",
+        sizing_decision_ts=_NOW,
+        measurement=_measurement(vol=0.10),
+        forecast=_forecast(vol=0.10),
+        policy=policy,
+        previous_size_vol=0.02,
+        shock_config=shock_config,
+    )
+
+    assert row.shock_override_applied is True
+    assert SHOCK_OVERRIDE_APPLIED in row.reason_codes
+    # Override floor: max(smoothed, 1.0 * raw_vol) >= raw_vol = 0.10
+    assert row.size_vol >= 0.10 - 1.0e-12
+
+
+def test_pipeline_without_shock_config_skips_override() -> None:
+    policy = _policy(policy_id="hybrid")
+    row = compute_size_vol(
+        symbol="AAPL",
+        sizing_decision_ts=_NOW,
+        measurement=_measurement(vol=0.10),
+        forecast=_forecast(vol=0.10),
+        policy=policy,
+        previous_size_vol=0.02,
+    )
+
+    assert row.shock_override_applied is False
+    assert SHOCK_OVERRIDE_APPLIED not in row.reason_codes
+
+
+def test_pipeline_shock_override_rejects_session_complete_label_intraday() -> None:
+    policy = _policy(policy_id="hybrid")
+    shock_config = ShockOverrideConfig(shock_ratio_threshold=1.5, shock_floor_multiplier=1.0)
+
+    with pytest.raises(ValueError, match="session-complete label"):
+        compute_size_vol(
+            symbol="AAPL",
+            sizing_decision_ts=_NOW,
+            measurement=_measurement(vol=0.02),
+            forecast=_forecast(vol=0.02),
+            policy=policy,
+            previous_size_vol=0.02,
+            shock_config=shock_config,
+            shock_labels=frozenset({"JUMP_DAY"}),
+            decision_kind="intraday",
+        )
+
+
+def test_pipeline_shock_override_accepts_intraday_safe_label_intraday() -> None:
+    policy = _policy(policy_id="hybrid")
+    shock_config = ShockOverrideConfig(shock_ratio_threshold=1.5, shock_floor_multiplier=1.0)
+    row = compute_size_vol(
+        symbol="AAPL",
+        sizing_decision_ts=_NOW,
+        measurement=_measurement(vol=0.02),
+        forecast=_forecast(vol=0.02),
+        policy=policy,
+        previous_size_vol=0.02,
+        shock_config=shock_config,
+        shock_labels=frozenset({"INTRADAY_SHOCK_TRIGGERED"}),
+        decision_kind="intraday",
+    )
+
+    assert row.shock_override_applied is True
+    assert SHOCK_OVERRIDE_APPLIED in row.reason_codes
+
+
+def test_pipeline_re_enforces_emergency_floor_after_shock_override() -> None:
+    policy = _policy(policy_floor=0.02, emergency_floor=0.05, cap_vol=0.5)
+    shock_config = ShockOverrideConfig(shock_ratio_threshold=1.5, shock_floor_multiplier=0.5)
+    # raw_vol=0.02 < EMERGENCY_FLOOR=0.05, but ratio=2 fires the override.
+    # The override floor produces 0.5 * 0.02 = 0.01 which is below floor, so
+    # EMERGENCY_FLOOR must re-enforce.
+    row = compute_size_vol(
+        symbol="AAPL",
+        sizing_decision_ts=_NOW,
+        measurement=_measurement(vol=0.02),
+        forecast=_forecast(vol=0.02),
+        policy=policy,
+        previous_size_vol=0.001,
+        shock_config=shock_config,
+    )
+
+    assert row.size_vol >= policy.emergency_floor - 1.0e-12
+
+
+def test_pipeline_label_only_shock_trigger_does_not_double_apply_emergency_floor() -> None:
+    """Label-only shock fires the override but raw_vol is normal; pipeline must
+    not append EMERGENCY_FLOOR_APPLIED a second time when one is already in
+    the stack from the floors-and-caps step.
+    """
+
+    policy = _policy(policy_id="hybrid", policy_floor=0.05, emergency_floor=0.03)
+    shock_config = ShockOverrideConfig(shock_ratio_threshold=10.0, shock_floor_multiplier=0.1)
+    # raw=0.01 forces FLOOR_APPLIED (clipped up to 0.05); previous=0.05 so
+    # ratio (0.01/0.05 < 10) does not trigger. Label fires the override but
+    # 0.1 * 0.01 = 0.001 < emergency_floor → re-enforced.
+    row = compute_size_vol(
+        symbol="AAPL",
+        sizing_decision_ts=_NOW,
+        measurement=_measurement(vol=0.01),
+        forecast=_forecast(vol=0.01),
+        policy=policy,
+        previous_size_vol=0.05,
+        shock_config=shock_config,
+        shock_labels=frozenset({"JUMP_DAY"}),
+        decision_kind="eod",
+    )
+
+    # EMERGENCY_FLOOR_APPLIED appears at most once.
+    emergency_count = sum(1 for c in row.reason_codes if c.code == "EMERGENCY_FLOOR_APPLIED")
+    assert emergency_count <= 1
+    assert row.size_vol >= policy.emergency_floor - 1.0e-12
+
+
+def test_pipeline_with_no_measurement_raises_when_hybrid_policy() -> None:
+    policy = _policy(policy_id="hybrid")
+
+    with pytest.raises(ValueError, match="hybrid"):
+        compute_size_vol(
+            symbol="AAPL",
+            sizing_decision_ts=_NOW,
+            measurement=None,
+            forecast=_forecast(),
+            policy=policy,
+            previous_size_vol=None,
         )
