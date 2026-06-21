@@ -102,7 +102,7 @@ class TestRiskConfig:
         config = RiskConfig()
 
         with pytest.raises((TypeError, AttributeError, ValidationError)):
-            config.max_position_pct = 0.50  # type: ignore[misc]
+            config.max_position_pct = 0.50
 
 
 class TestRiskConfigValidation:
@@ -316,7 +316,7 @@ class TestMarketState:
         )
 
         with pytest.raises((TypeError, AttributeError, ValidationError)):
-            state.regime = "changed"  # type: ignore[misc]
+            state.regime = "changed"
 
 
 class TestRiskConfigTradingCosts:

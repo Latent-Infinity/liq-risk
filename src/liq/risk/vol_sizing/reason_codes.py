@@ -65,9 +65,7 @@ SELECT_UNCERTAINTY_ADJUSTED = ReasonCode(
     code="SELECT_UNCERTAINTY_ADJUSTED",
     stage="select",
     severity="ok",
-    description=(
-        "Policy D: hybrid raw_vol followed by an uncertainty-aware multiplier."
-    ),
+    description=("Policy D: hybrid raw_vol followed by an uncertainty-aware multiplier."),
 )
 CONSERVATIVE_COMBINATION_APPLIED = ReasonCode(
     code="CONSERVATIVE_COMBINATION_APPLIED",
@@ -88,9 +86,7 @@ UNCERTAINTY_APPLIED = ReasonCode(
     code="UNCERTAINTY_APPLIED",
     stage="uncertainty",
     severity="info",
-    description=(
-        "Uncertainty multiplier (>= 1.0) scaled raw_vol upward (Concept #8)."
-    ),
+    description=("Uncertainty multiplier (>= 1.0) scaled raw_vol upward (Concept #8)."),
 )
 FLOOR_APPLIED = ReasonCode(
     code="FLOOR_APPLIED",
@@ -103,8 +99,7 @@ EMERGENCY_FLOOR_APPLIED = ReasonCode(
     stage="floor",
     severity="conservative",
     description=(
-        "Bounded_vol clipped up to the symbol/bucket EMERGENCY_FLOOR; the "
-        "absolute fail-safe."
+        "Bounded_vol clipped up to the symbol/bucket EMERGENCY_FLOOR; the absolute fail-safe."
     ),
 )
 CAP_APPLIED = ReasonCode(
@@ -124,8 +119,7 @@ HYSTERESIS_APPLIED = ReasonCode(
     stage="smoothing",
     severity="info",
     description=(
-        "Per-step max-daily-decrease cap limited size_vol's fall versus the "
-        "previous value."
+        "Per-step max-daily-decrease cap limited size_vol's fall versus the previous value."
     ),
 )
 SHOCK_OVERRIDE_APPLIED = ReasonCode(
@@ -160,8 +154,7 @@ SOURCE_RECOVERED = ReasonCode(
     stage="fallback",
     severity="ok",
     description=(
-        "Fallback source passed N consecutive valid observations and the "
-        "release valve is now open."
+        "Fallback source passed N consecutive valid observations and the release valve is now open."
     ),
 )
 ATR_FALLBACK = ReasonCode(
@@ -174,9 +167,7 @@ TRADE_BLOCKED = ReasonCode(
     code="TRADE_BLOCKED",
     stage="fallback",
     severity="conservative",
-    description=(
-        "All upstream fallback tiers failed; trade blocked / no-size (tier 6)."
-    ),
+    description=("All upstream fallback tiers failed; trade blocked / no-size (tier 6)."),
 )
 
 REASON_CODES: tuple[ReasonCode, ...] = (

@@ -89,9 +89,7 @@ def _select_raw_vol(
     raise ValueError(f"unknown policy_id {policy_id!r}")
 
 
-def _uncertainty_multiplier(
-    forecast: ForecastInput | None, policy: SizingPolicy
-) -> float:
+def _uncertainty_multiplier(forecast: ForecastInput | None, policy: SizingPolicy) -> float:
     if forecast is None:
         return 1.0
     rank = max(
@@ -181,9 +179,7 @@ def compute_size_vol(
         # Conservative fallback: the most-conservative trusted estimate available,
         # else the previous size_vol, else the policy_floor. Monotonic-conservative
         # Never reduce conservatism silently.
-        conservative_candidate = (
-            max(fallback_components) if fallback_components else float("nan")
-        )
+        conservative_candidate = max(fallback_components) if fallback_components else float("nan")
         if math.isfinite(conservative_candidate):
             raw_vol = max(raw_vol, conservative_candidate)
         elif previous_size_vol is not None and previous_size_vol > 0.0:
@@ -270,7 +266,9 @@ def compute_size_vol(
     source_valid_from = (
         measurement.source_valid_from
         if measurement is not None
-        else forecast.forecast_available_ts if forecast is not None else sizing_decision_ts
+        else forecast.forecast_available_ts
+        if forecast is not None
+        else sizing_decision_ts
     )
     valid_until_candidates = [
         v
@@ -288,18 +286,14 @@ def compute_size_vol(
         symbol=symbol,
         sizing_decision_ts=sizing_decision_ts,
         forecast_id=forecast.forecast_id if forecast is not None else None,
-        forecast_available_ts=(
-            forecast.forecast_available_ts if forecast is not None else None
-        ),
+        forecast_available_ts=(forecast.forecast_available_ts if forecast is not None else None),
         source_valid_from=source_valid_from,
         measurement_id=measurement.measurement_id if measurement is not None else None,
         policy_id=policy.policy_id,
         policy_version=policy.policy_version,
         raw_vol=raw_vol,
         raw_vol_source=raw_vol_source,
-        source_measurement_vol=(
-            measurement.measurement_vol if measurement is not None else None
-        ),
+        source_measurement_vol=(measurement.measurement_vol if measurement is not None else None),
         source_forecast_var=(
             forecast.forecast_var_per_session_equiv if forecast is not None else None
         ),

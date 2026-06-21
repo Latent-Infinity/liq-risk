@@ -969,9 +969,7 @@ class TestPyramidingConstraintBatchProjectedPosition:
                 realized_pnl=Decimal("0"),
                 timestamp=now,
             )
-        portfolio = PortfolioState(
-            cash=Decimal("100000"), positions=positions, timestamp=now
-        )
+        portfolio = PortfolioState(cash=Decimal("100000"), positions=positions, timestamp=now)
         bar = Bar(
             timestamp=now,
             symbol="SPY",
@@ -1010,9 +1008,7 @@ class TestPyramidingConstraintBatchProjectedPosition:
         # entry + 3 adds = 4 pass; 4 rejected as pyramiding-limit
         assert len(result.orders) == 4
         assert len(result.rejected) == 4
-        assert all(
-            "Pyramiding limit reached" in r.reason for r in result.rejected
-        )
+        assert all("Pyramiding limit reached" in r.reason for r in result.rejected)
 
     def test_batch_combines_cross_fold_state_with_in_batch_adds(self) -> None:
         """Cross-fold add_count (from record_trade) plus in-batch adds share

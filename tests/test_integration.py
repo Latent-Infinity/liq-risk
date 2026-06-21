@@ -888,6 +888,7 @@ class TestKillSwitchIntegration:
         result = engine.process_signals(signals, portfolio, market, config)
 
         assert result.halted is True
+        assert result.halt_reason is not None
         assert "equity" in result.halt_reason.lower()
 
     def test_daily_loss_halts_trading(self) -> None:
@@ -927,6 +928,7 @@ class TestKillSwitchIntegration:
         )
 
         assert result.halted is True
+        assert result.halt_reason is not None
         assert "daily" in result.halt_reason.lower()
 
     def test_drawdown_halts_trading(self) -> None:
@@ -966,6 +968,7 @@ class TestKillSwitchIntegration:
         )
 
         assert result.halted is True
+        assert result.halt_reason is not None
         assert "drawdown" in result.halt_reason.lower()
 
 

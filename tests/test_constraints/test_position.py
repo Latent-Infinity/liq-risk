@@ -185,7 +185,6 @@ class TestMaxPositionConstraintBasic:
         assert len(constraint_result.orders) == 1
         assert constraint_result.orders[0].quantity == Decimal("0.1")
 
-
     def test_existing_position_considered(self) -> None:
         """Existing position should be considered when checking limit."""
         from liq.risk.constraints import MaxPositionConstraint

@@ -116,7 +116,7 @@ class TestRiskEngineResultStructure:
             halt_reason=None,
         )
         with pytest.raises((TypeError, AttributeError, ValidationError)):
-            result.halted = True  # type: ignore[misc]
+            result.halted = True
 
 
 class TestRiskEngineBasic:

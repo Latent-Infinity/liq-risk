@@ -143,11 +143,7 @@ def advance_fallback(
     reasons: list[ReasonCode] = []
     next_tier = _pick_active_tier(obs)
     primary_invalid = next_tier != FallbackChain.PRIMARY
-    consecutive = (
-        state.consecutive_valid_observations + 1
-        if obs.primary_ok
-        else 0
-    )
+    consecutive = state.consecutive_valid_observations + 1 if obs.primary_ok else 0
 
     # Trade-block tier emits a single TRADE_BLOCKED code and zero raw_vol.
     if next_tier == FallbackChain.TRADE_BLOCK:

@@ -90,9 +90,7 @@ def _validate_labels(labels: frozenset[str], decision_kind: DecisionKind) -> Non
             )
 
 
-def _ratio_triggered(
-    raw_vol: float, previous_size_vol: float | None, threshold: float
-) -> bool:
+def _ratio_triggered(raw_vol: float, previous_size_vol: float | None, threshold: float) -> bool:
     if previous_size_vol is None or previous_size_vol <= 0.0:
         return False
     return raw_vol / previous_size_vol > threshold

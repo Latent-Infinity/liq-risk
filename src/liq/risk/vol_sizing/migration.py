@@ -157,8 +157,7 @@ class MigrationLedger:
         current = self.current_stage(sleeve)
         if to_stage.value >= current.value:
             raise ValueError(
-                f"rollback() must go backward: current={current.name}, "
-                f"requested={to_stage.name}"
+                f"rollback() must go backward: current={current.name}, requested={to_stage.name}"
             )
         transition = StageTransition(
             sleeve=sleeve,
@@ -173,9 +172,7 @@ class MigrationLedger:
         return transition
 
 
-def _evaluate_rollback(
-    obs: MigrationObservation, config: RollbackTriggerConfig
-) -> tuple[str, ...]:
+def _evaluate_rollback(obs: MigrationObservation, config: RollbackTriggerConfig) -> tuple[str, ...]:
     breaches: list[str] = []
     if obs.vol_target_error_delta > config.vol_target_error_delta:
         breaches.append("vol_target_error_delta")
@@ -219,9 +216,7 @@ def propose_next_stage(
 
     current = ledger.current_stage(sleeve)
     rollback_reasons = _evaluate_rollback(obs, config)
-    gating_reasons = _gating_reasons(
-        sleeve=sleeve, current=current, obs=obs, ledger=ledger
-    )
+    gating_reasons = _gating_reasons(sleeve=sleeve, current=current, obs=obs, ledger=ledger)
     should_rollback = len(rollback_reasons) > 0
     proposed = current
     if not should_rollback and not gating_reasons and current < MigrationStage.STAGE_4:

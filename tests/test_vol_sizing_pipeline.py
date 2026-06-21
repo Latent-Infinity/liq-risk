@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 from datetime import UTC, datetime, timedelta
+from typing import Any, cast
 
 import pytest
 from hypothesis import HealthCheck, given, settings
@@ -23,6 +24,7 @@ from liq.risk.vol_sizing import (
     UNCERTAINTY_APPLIED,
     ForecastInput,
     MeasurementInput,
+    PolicyId,
     ShockOverrideConfig,
     SizingPolicy,
     compute_size_vol,
@@ -34,7 +36,7 @@ _VALID_UNTIL = _NOW + timedelta(hours=4)
 
 def _policy(
     *,
-    policy_id: str = "hybrid",
+    policy_id: PolicyId = "hybrid",
     policy_floor: float = 0.005,
     emergency_floor: float = 0.003,
     cap_vol: float = 0.5,
@@ -134,7 +136,9 @@ def test_hybrid_policy_takes_conservative_max() -> None:
 
 
 def test_uncertainty_policy_multiplier_is_at_least_one_and_bounded() -> None:
-    policy = _policy(policy_id="uncertainty_adjusted", uncertainty_k=0.25, uncertainty_max_extra=0.5)
+    policy = _policy(
+        policy_id="uncertainty_adjusted", uncertainty_k=0.25, uncertainty_max_extra=0.5
+    )
     pre = compute_size_vol(
         symbol="AAPL",
         sizing_decision_ts=_NOW,
@@ -377,7 +381,7 @@ def test_pipeline_rejects_unknown_policy_id() -> None:
             sizing_decision_ts=_NOW,
             measurement=_measurement(),
             forecast=_forecast(),
-            policy=_policy(policy_id="bad"),
+            policy=_policy(policy_id=cast(Any, "bad")),
             previous_size_vol=None,
         )
 

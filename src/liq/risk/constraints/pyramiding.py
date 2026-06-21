@@ -175,15 +175,9 @@ class PyramidingConstraint:
             symbol = order.symbol
             if symbol not in projected:
                 maybe_position = portfolio_state.positions.get(symbol)
-                projected[symbol] = (
-                    maybe_position.quantity if maybe_position else Decimal("0")
-                )
+                projected[symbol] = maybe_position.quantity if maybe_position else Decimal("0")
             current_qty = projected[symbol]
-            signed = (
-                order.quantity
-                if order.side == OrderSide.BUY
-                else -order.quantity
-            )
+            signed = order.quantity if order.side == OrderSide.BUY else -order.quantity
 
             # Check if this is a risk-reducing order
             is_risk_reducing = self._is_risk_reducing(order, current_qty)

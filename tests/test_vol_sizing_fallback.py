@@ -209,8 +209,7 @@ def test_trade_block_has_zero_size_vol() -> None:
 
 
 def test_tier_ordering_matches_research_plan() -> None:
-    """The 6-tier ordering: primary, baseline, ewma, measurement, atr, block.
-    """
+    """The 6-tier ordering: primary, baseline, ewma, measurement, atr, block."""
 
     assert FallbackChain.PRIMARY.value < FallbackChain.APPROVED_BASELINE.value
     assert FallbackChain.APPROVED_BASELINE.value < FallbackChain.EWMA.value
