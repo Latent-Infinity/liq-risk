@@ -4,6 +4,30 @@ Position sizing and risk management for the LIQ Stack.
 
 **liq-risk** serves as "The Bridge Between Prediction and Execution" — transforming trading signals into sized order requests while enforcing risk constraints.
 
+## Volatility sizing input (`size_vol_t`)
+
+`liq.risk.vol_sizing` ships the production sizing surface that takes a
+forecast row + a measurement row + an operator-owned policy + the
+previous `size_vol` and returns one frozen `SizeVolInput` row carrying
+the post-transform `size_vol`, the full reason-code stack, and the
+validity window. The surface has four parts:
+
+- **Ordered pipeline** — `compute_size_vol(...)` runs the seven-step
+  non-commutative transform; `SizingPolicy` is the frozen policy
+  declaration; the four documented policies are `measurement`,
+  `forecast`, `hybrid`, and `uncertainty_adjusted`.
+- **Shock override** — `apply_shock_override(...)` enforces the
+  ratio-based + label-based override after smoothing, with hard
+  boundary #13 keeping session-complete labels out of the intraday
+  sizer.
+- **Fallback hierarchy** — `advance_fallback(...)` runs the six-tier
+  hierarchy + monotonic-conservatism HOLD + release valve.
+- **ATR migration** — `MigrationLedger` records sleeve-by-sleeve stage
+  advances + rollbacks; `propose_next_stage(...)` evaluates the
+  rollback triggers.
+
+The full surface is documented in [`docs/vol-sizing.md`](docs/vol-sizing.md).
+
 > **ATR retirement (non-blocking).** The canonical risk-variance
 > estimator in `liq-features` passes the Gate 4 non-inferiority test
 > against the ATR compatibility bridge `natr_t = ATR_t / close_t`. The
