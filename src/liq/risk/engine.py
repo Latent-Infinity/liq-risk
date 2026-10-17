@@ -27,6 +27,46 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def check_drawdown_halt(
+    portfolio_state: PortfolioState,
+    risk_config: RiskConfig,
+    high_water_mark: Decimal | None = None,
+) -> tuple[bool, str | None]:
+    """Check if trading should be halted due to drawdown from the high-water mark.
+
+    Drawdown is ``(high_water_mark - equity) / high_water_mark``. Trading is
+    halted when it is at or above ``risk_config.max_drawdown_halt``.
+
+    Args:
+        portfolio_state: Current portfolio; its ``equity`` is the current equity.
+        risk_config: Risk parameters supplying ``max_drawdown_halt``.
+        high_water_mark: Peak equity. ``None`` or a non-positive value never halts.
+
+    Returns:
+        Tuple of (halted, reason).
+    """
+    if high_water_mark is None or high_water_mark <= 0:
+        return False, None
+
+    current_equity = portfolio_state.equity
+    drawdown = (high_water_mark - current_equity) / high_water_mark
+
+    if drawdown >= Decimal(str(risk_config.max_drawdown_halt)):
+        logger.warning(
+            "HALT: Drawdown of %.1f%% exceeds limit of %.1f%% (hwm=%s, equity=%s)",
+            float(drawdown * 100),
+            risk_config.max_drawdown_halt * 100,
+            high_water_mark,
+            current_equity,
+        )
+        return (
+            True,
+            f"Drawdown of {drawdown:.1%} exceeds limit of {risk_config.max_drawdown_halt:.1%}",
+        )
+
+    return False, None
+
+
 class RiskEngineResult(BaseModel):
     """Result of processing signals through the risk engine.
 
@@ -345,34 +385,9 @@ class RiskEngine:
     ) -> tuple[bool, str | None]:
         """Check if trading should be halted due to drawdown.
 
-        Args:
-            portfolio_state: Current portfolio.
-            risk_config: Risk parameters.
-            high_water_mark: Peak equity for drawdown calculation.
-
-        Returns:
-            Tuple of (halted, reason).
+        Delegates to :func:`check_drawdown_halt`.
         """
-        if high_water_mark is None or high_water_mark <= 0:
-            return False, None
-
-        current_equity = portfolio_state.equity
-        drawdown = (high_water_mark - current_equity) / high_water_mark
-
-        if drawdown >= Decimal(str(risk_config.max_drawdown_halt)):
-            logger.warning(
-                "HALT: Drawdown of %.1f%% exceeds limit of %.1f%% (hwm=%s, equity=%s)",
-                float(drawdown * 100),
-                risk_config.max_drawdown_halt * 100,
-                high_water_mark,
-                current_equity,
-            )
-            return (
-                True,
-                f"Drawdown of {drawdown:.1%} exceeds limit of {risk_config.max_drawdown_halt:.1%}",
-            )
-
-        return False, None
+        return check_drawdown_halt(portfolio_state, risk_config, high_water_mark)
 
     def _check_equity_floor(
         self,

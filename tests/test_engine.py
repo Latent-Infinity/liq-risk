@@ -656,6 +656,82 @@ class TestRiskEngineDrawdownHalt:
         assert len(sell_orders) >= 0  # May or may not generate based on implementation
 
 
+def _cash_portfolio(equity: str) -> PortfolioState:
+    return PortfolioState(
+        cash=Decimal(equity),
+        positions={},
+        timestamp=datetime(2024, 1, 2, 21, 0, tzinfo=UTC),
+    )
+
+
+class TestCheckDrawdownHalt:
+    """Test the public drawdown halt check."""
+
+    @pytest.mark.parametrize("high_water_mark", [None, Decimal("0"), Decimal("-1")])
+    def test_missing_or_non_positive_high_water_mark_is_not_halted(
+        self, high_water_mark: Decimal | None
+    ) -> None:
+        from liq.risk import check_drawdown_halt
+
+        result = check_drawdown_halt(
+            _cash_portfolio("50000"), RiskConfig(max_drawdown_halt=0.15), high_water_mark
+        )
+
+        assert result == (False, None)
+
+    def test_drawdown_below_threshold_is_not_halted(self) -> None:
+        from liq.risk import check_drawdown_halt
+
+        result = check_drawdown_halt(
+            _cash_portfolio("85001"), RiskConfig(max_drawdown_halt=0.15), Decimal("100000")
+        )
+
+        assert result == (False, None)
+
+    def test_drawdown_equal_to_threshold_is_halted_with_reason(self) -> None:
+        from liq.risk import check_drawdown_halt
+
+        result = check_drawdown_halt(
+            _cash_portfolio("85000"), RiskConfig(max_drawdown_halt=0.15), Decimal("100000")
+        )
+
+        assert result == (True, "Drawdown of 15.0% exceeds limit of 15.0%")
+
+    def test_drawdown_above_threshold_is_halted_with_reason(self) -> None:
+        from liq.risk import check_drawdown_halt
+
+        result = check_drawdown_halt(
+            _cash_portfolio("80000"), RiskConfig(max_drawdown_halt=0.15), Decimal("100000")
+        )
+
+        assert result == (True, "Drawdown of 20.0% exceeds limit of 15.0%")
+
+    def test_is_exported_from_the_package_and_the_engine_module(self) -> None:
+        import liq.risk
+        from liq.risk import engine
+
+        assert liq.risk.check_drawdown_halt is engine.check_drawdown_halt
+        assert "check_drawdown_halt" in liq.risk.__all__
+
+    @pytest.mark.parametrize(
+        ("equity", "high_water_mark"),
+        [("50000", None), ("85001", "100000"), ("85000", "100000"), ("80000", "100000")],
+    )
+    def test_engine_private_check_agrees_with_public_check(
+        self, equity: str, high_water_mark: str | None
+    ) -> None:
+        from liq.risk import check_drawdown_halt
+        from liq.risk.engine import RiskEngine
+
+        portfolio = _cash_portfolio(equity)
+        config = RiskConfig(max_drawdown_halt=0.15)
+        hwm = None if high_water_mark is None else Decimal(high_water_mark)
+
+        assert RiskEngine()._check_drawdown_halt(portfolio, config, hwm) == check_drawdown_halt(
+            portfolio, config, hwm
+        )
+
+
 class TestRiskEngineStopLoss:
     """Test stop-loss calculation."""
 

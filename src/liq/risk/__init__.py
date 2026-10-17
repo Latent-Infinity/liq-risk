@@ -40,6 +40,7 @@ __all__ = [
     # Engine
     "RiskEngine",
     "RiskEngineResult",
+    "check_drawdown_halt",
     # Exceptions
     "RiskError",
     "InsufficientBuyingPowerError",
@@ -80,7 +81,7 @@ from liq.risk.constraints import (
     SectorExposureConstraint,
     ShortSellingConstraint,
 )
-from liq.risk.engine import RiskEngine, RiskEngineResult
+from liq.risk.engine import RiskEngine, RiskEngineResult, check_drawdown_halt
 from liq.risk.enums import HaltMode, PriceReference, SizingMode
 from liq.risk.exceptions import (
     EquityFloorBreachedError,
